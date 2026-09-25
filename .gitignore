@@ -1,0 +1,57 @@
+﻿# =========================
+# Python / Backend / ML
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+venv/
+ryu-env/
+
+# ML Data & Models (Keep structure, ignore data)
+ml_pipeline/data/raw/*.csv
+ml_pipeline/data/processed/*.csv
+*.joblib
+*.pkl
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+
+# =========================
+# Node / Frontend
+# =========================
+dashboard/node_modules/
+dashboard/dist/
+dashboard/dist-ssr/
+dashboard/*.local
+dashboard/.npm
+dashboard/.eslintcache
+dashboard/.stylelintcache
+
+# =========================
+# OS / Environment
+# =========================
+.DS_Store
+Thumbs.db
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
