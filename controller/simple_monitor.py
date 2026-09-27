@@ -240,16 +240,20 @@ class SimpleMonitor13(app_manager.RyuApp):
         src_ip = stats_dict['src_ip']
         if src_ip in self.blocked_ips:
             return  # Already blocked
-            
-        is_ddos = self.detector.predict(
+
+        is_ddos, inference_ms = self.detector.predict(
             pps=stats_dict['pps'],
             bps=stats_dict['bps'],
             duration_sec=stats_dict['duration_sec'],
             packet_count=stats_dict['packet_count']
         )
-        
+
+        # Push inference latency to shared state so React dashboard shows real value
+        update_state(inference_latency_ms=inference_ms)
+
         if is_ddos:
-            self.logger.warning(f"DDoS Detected from {src_ip}! Mitigating...")
+            self.logger.warning(f"DDoS Detected from {src_ip}! Pushing drop rule...")
             push_drop_rule(datapath, src_ip)
             self.blocked_ips.add(src_ip)
             update_state(status="UNDER_ATTACK", blocked_ips=list(self.blocked_ips))
+

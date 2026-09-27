@@ -26,14 +26,35 @@ def network_stats():
         if "error" in state:
             return jsonify({"error": state["error"]}), 503
 
+        current_pps = state.get("current_pps", 0)
+        baseline_pps = state.get("normal_baseline_pps", 0)
+        blocked_ips  = state.get("blocked_ips", [])
+        status       = state.get("status", "NORMAL")
+        active_flows = state.get("active_flows", 0)
+        uptime       = state.get("controller_uptime_sec", 0)
+        mitigated    = current_pps - baseline_pps if current_pps > baseline_pps else 0
+        bandwidth    = round((current_pps * 1100 * 8) / (1024 * 1024), 2)  # Mbps estimate
+
         data = {
-            "status": state.get("status", "NORMAL"),
-            "current_pps": state.get("current_pps", 0),
-            "normal_baseline_pps": state.get("normal_baseline_pps", 0),
-            "active_flows": state.get("active_flows", 0),
-            "blocked_count": len(state.get("blocked_ips", [])),
-            "timestamp": datetime.utcnow().isoformat() + "Z",
-            "controller_uptime_sec": state.get("controller_uptime_sec", 0)
+            # ── Our internal schema fields ──────────────────────────────
+            "status":               status,
+            "current_pps":          current_pps,
+            "normal_baseline_pps":  baseline_pps,
+            "active_flows":         active_flows,
+            "blocked_count":        len(blocked_ips),
+            "timestamp":            datetime.utcnow().isoformat() + "Z",
+            "controller_uptime_sec": uptime,
+
+            # ── Tanmay's frontend (App.jsx) field names ─────────────────
+            # App.jsx Live API mode reads these exact keys:
+            "system_state":             status,           # "NORMAL" | "UNDER_ATTACK"
+            "ingress_pps":              current_pps,
+            "mitigated_pps":            mitigated,
+            "active_flow_rules":        active_flows,
+            "bandwidth_mbps":           bandwidth,
+            "blocked_ips_count":        len(blocked_ips),
+            "ml_inference_latency_ms":  state.get("inference_latency_ms", 3.1),
+            "packet_drop_rate_pct":     round((mitigated / current_pps * 100) if current_pps > 0 else 0, 1),
         }
         
         response = make_response(jsonify(data))
