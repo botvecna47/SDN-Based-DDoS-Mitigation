@@ -5,9 +5,10 @@ import os
 from state_manager import read_state, initialize_state
 
 app = Flask(__name__)
-CORS(app, origins=["http://localhost:5173", "http://127.0.0.1:5173"])
+CORS(app, origins="*")   # Allow all origins for local demo
 
-if not os.path.exists("shared_state.json"):
+STATE_FILE_PATH = os.path.join(os.path.dirname(__file__), 'shared_state.json')
+if not os.path.exists(STATE_FILE_PATH):
     try:
         initialize_state()
     except Exception as e:

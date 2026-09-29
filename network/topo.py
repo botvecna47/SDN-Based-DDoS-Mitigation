@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 from mininet.net import Mininet
 from mininet.node import RemoteController, OVSKernelSwitch
 from mininet.cli import CLI
@@ -33,6 +33,9 @@ def create_network():
     
     info('*** Starting network\n')
     net.start()
+
+    info('*** Starting iperf UDP server on h3\n')
+    h3.cmd('iperf -s -u &')
     
     info('*** Running CLI (Type "pingall" to test, or "exit" to quit)\n')
     CLI(net)

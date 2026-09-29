@@ -30,6 +30,7 @@ import {
   Radio,
   X
 } from 'lucide-react';
+import { API_CONFIG } from './api/config';
 
 const ANOMALY_PPS_THRESHOLD = 8000;
 const CHART_HISTORY_POINTS = 30;
@@ -72,8 +73,6 @@ const DEFAULT_BLOCKED_ENTRIES = [
     severity: 'Medium'
   }
 ];
-
-import { API_CONFIG } from './api/config';
 
 export default function App() {
   // Operating Mode
