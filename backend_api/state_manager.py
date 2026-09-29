@@ -1,4 +1,4 @@
-﻿import json
+import json
 import os
 from filelock import FileLock
 
@@ -27,13 +27,13 @@ def initialize_state():
         with open(STATE_FILE, 'w') as f:
             json.dump(default_state, f, indent=4)
 
-def update_state(new_data_dict):
+def update_state(**kwargs):
     """RYU CONTROLLER uses this to push new data."""
     with FileLock(LOCK_FILE):
         try:
             with open(STATE_FILE, 'r') as f:
                 state = json.load(f)
-            state.update(new_data_dict)
+            state.update(kwargs)
             with open(STATE_FILE, 'w') as f:
                 json.dump(state, f, indent=4)
         except (FileNotFoundError, json.JSONDecodeError):

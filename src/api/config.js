@@ -1,7 +1,7 @@
 // Configuration for SDN DDoS Dashboard API
 export const API_CONFIG = {
   // Flask REST API Base URL
-  BASE_URL: import.meta.env.VITE_API_BASE_URL || "http://localhost:5000",
+  BASE_URL: import.meta.env.VITE_API_BASE_URL || "http://192.168.8.147:5000",
 
   // Endpoints specified in project architecture
   ENDPOINTS: {

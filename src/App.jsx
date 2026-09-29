@@ -73,10 +73,12 @@ const DEFAULT_BLOCKED_ENTRIES = [
   }
 ];
 
+import { API_CONFIG } from './api/config';
+
 export default function App() {
   // Operating Mode
   const [useLiveApi, setUseLiveApi] = useState(false);
-  const [apiUrl, setApiUrl] = useState('http://localhost:5000/api/network-stats');
+  const [apiUrl, setApiUrl] = useState(API_CONFIG.BASE_URL + API_CONFIG.ENDPOINTS.NETWORK_STATS);
   const [controllerConnected, setControllerConnected] = useState(true);
   const [apiError, setApiError] = useState(null);
 

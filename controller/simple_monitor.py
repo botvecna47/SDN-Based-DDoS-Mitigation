@@ -173,6 +173,8 @@ class SimpleMonitor13(app_manager.RyuApp):
         current_time = time.time()
         controller_uptime_sec = current_time - self.start_time
         
+        total_pps = 0.0
+        
         for stat in body:
             # We are only interested in IPv4 flows
             if 'ipv4_src' not in stat.match or 'ipv4_dst' not in stat.match:
@@ -199,6 +201,8 @@ class SimpleMonitor13(app_manager.RyuApp):
                     # calculate bps, byte_count is in bytes, so * 8 for bits
                     bps = ((byte_count - prev_byte) * 8) / time_delta
             
+            total_pps += pps
+            
             # Store history
             self.flow_history[flow_key] = (packet_count, byte_count, current_time)
             
@@ -219,7 +223,9 @@ class SimpleMonitor13(app_manager.RyuApp):
         # Update shared state
         update_state(
             controller_uptime_sec=controller_uptime_sec,
-            blocked_ips=list(self.blocked_ips)
+            blocked_ips=list(self.blocked_ips),
+            current_pps=total_pps,
+            active_flows=len(body)
         )
 
     def _log_to_csv(self, stats_dict):
