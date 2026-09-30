@@ -37,6 +37,10 @@ def create_network():
     info('*** Starting iperf UDP server on h3\n')
     h3.cmd('iperf -s -u &')
     
+    info('*** Bootstrapping MAC learning with pingall\n')
+    net.pingAll()
+    info('*** MAC learning complete. Network is ready.\n')
+    
     info('*** Running CLI (Type "pingall" to test, or "exit" to quit)\n')
     CLI(net)
     

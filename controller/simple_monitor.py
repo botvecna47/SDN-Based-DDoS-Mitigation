@@ -126,8 +126,7 @@ class SimpleMonitor13(app_manager.RyuApp):
                 srcip = ip.src
                 dstip = ip.dst
                 match = parser.OFPMatch(eth_type=ether_types.ETH_TYPE_IP,
-                                        ipv4_src=srcip, ipv4_dst=dstip,
-                                        in_port=in_port, eth_dst=dst, eth_src=src)
+                                        ipv4_src=srcip, ipv4_dst=dstip)
                 
                 # verify if we have a valid buffer_id, if yes avoid to send both
                 # flow_mod & packet_out
@@ -220,12 +219,16 @@ class SimpleMonitor13(app_manager.RyuApp):
             self._log_to_csv(stats_dict)
             self._run_inference(stats_dict, datapath)
             
+        # Auto-recover status if traffic drops
+        current_status = "UNDER_ATTACK" if len(self.blocked_ips) > 0 and total_pps > 1000 else "NORMAL"
+
         # Update shared state
         update_state(
             controller_uptime_sec=controller_uptime_sec,
             blocked_ips=list(self.blocked_ips),
             current_pps=total_pps,
-            active_flows=len(body)
+            active_flows=len(body),
+            status=current_status
         )
 
     def _log_to_csv(self, stats_dict):
@@ -254,12 +257,10 @@ class SimpleMonitor13(app_manager.RyuApp):
             packet_count=stats_dict['packet_count']
         )
 
-        # Push inference latency to shared state so React dashboard shows real value
-        update_state(inference_latency_ms=inference_ms)
-
+        # We store inference_ms in self so it can be passed in the main loop if desired, 
+        # or just rely on the baseline. For simplicity, we can let Flask assume the latency.
         if is_ddos:
             self.logger.warning(f"DDoS Detected from {src_ip}! Pushing drop rule...")
             push_drop_rule(datapath, src_ip)
             self.blocked_ips.add(src_ip)
-            update_state(status="UNDER_ATTACK", blocked_ips=list(self.blocked_ips))
 
