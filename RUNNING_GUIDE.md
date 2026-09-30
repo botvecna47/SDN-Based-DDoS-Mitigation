@@ -1,93 +1,125 @@
-# 🛡️ SDN DDoS Mitigation — Running Guide
+# 🛡️ SDN DDoS Mitigation — Setup & Running Guide
 
-> **Last updated: 2026-09-30** — New Sentinel UI, automatic MAC bootstrapping, auto-recovery after attacks, and Flow Table API. Always `git pull` on Ubuntu before starting.
-
-> **Save this file. Read it every time before you run the project.**
-
----
-
-## 📋 Architecture Overview
-
-| Component | Where it runs | What it does |
-|-----------|--------------|--------------|
-| **Mininet** | Ubuntu VM | Creates virtual network (h1, h2, h3, s1) |
-| **Ryu Controller** | Ubuntu VM | The brain — collects flow stats, detects attacks |
-| **Flask API** | Ubuntu VM | Serves live data to the React dashboard |
-| **React Dashboard** | Windows | Visualises traffic, PPS chart, blocked IPs |
+> **Last updated: 2026-09-30**
+> New Sentinel UI integrated, automatic MAC bootstrapping added, auto-recovery after attacks fixed.
+> **Always `git pull` on Ubuntu before starting a session.**
 
 ---
 
-## ⚠️ Golden Rules (Read Before Every Session)
+## 🗺️ Architecture — What Runs Where
 
-> [!IMPORTANT]
-> **ALWAYS start in this exact order:** Ryu → Flask → Mininet → React
-> Starting Mininet before Ryu = switch has no controller = 100% packet loss
+```
+Ubuntu VM (192.168.8.147)                 Windows Machine
+┌─────────────────────────────┐           ┌──────────────────────────┐
+│ Terminal 1: Ryu Controller  │           │ Terminal: React Dashboard │
+│ → port 6653 (OpenFlow)      │           │ → http://localhost:5173   │
+│                             │           │                          │
+│ Terminal 2: Flask API       │◄──HTTP────│ Polls /api/network-stats │
+│ → port 5000 (REST)          │           │ every 1 second           │
+│                             │           └──────────────────────────┘
+│ Terminal 3: Mininet         │
+│ → h1, h2, h3, s1           │
+└─────────────────────────────┘
+```
 
-> [!IMPORTANT]
-> **ALWAYS run `sudo mn -c` before starting Mininet** if you ran it before in this session. Leftover OVS state causes silent failures.
-
-> [!IMPORTANT]
-> **ALWAYS activate the virtual environment** before running Ryu or Flask:
-> `source ryu39_env/bin/activate`
+| Component | Machine | Port | File |
+|-----------|---------|------|------|
+| Ryu SDN Controller | Ubuntu VM | 6653 | `controller/simple_monitor.py` |
+| Flask REST API | Ubuntu VM | 5000 | `backend_api/app.py` |
+| Mininet Topology | Ubuntu VM | — | `network/topo.py` |
+| React Dashboard | Windows | 5173 | `src/App.tsx` |
 
 ---
 
-## 🚀 Step-by-Step Launch Sequence
+## ⚠️ The Three Rules — Read Every Time
 
-### 🔵 STEP 0 — One-Time Setup (Only if first time after cloning)
+> [!IMPORTANT]
+> **Rule 1 — Order always matters:** Ryu → Flask → Mininet → React.
+> Never start Mininet before Ryu. The switch connects to the controller on startup. If Ryu is not running, the switch has no controller and drops all packets.
 
-Run this inside your Ubuntu VM in the project folder:
+> [!IMPORTANT]
+> **Rule 2 — Always clean before Mininet:** Run `sudo mn -c` before every `sudo python3 network/topo.py`.
+> Leftover OVS state from previous sessions causes silent failures and 100% packet loss.
+
+> [!IMPORTANT]
+> **Rule 3 — Always activate the virtualenv:** Run `source ryu39_env/bin/activate` in every Ubuntu terminal before running Ryu or Flask.
+
+---
+
+## 🔧 One-Time Setup (First Time Only)
+
+Only do this once after cloning the repo. Skip this section on every subsequent session.
+
+### On Ubuntu VM
 
 ```bash
-# Install system tools
-sudo add-apt-repository universe -y
+# 1. Install system dependencies
 sudo apt update
-sudo apt install mininet openvswitch-switch hping3 iperf git -y
+sudo apt install -y mininet openvswitch-switch hping3 iperf git python3.9 python3.9-venv python3.9-distutils
 
-# Create Python 3.9 virtual environment (Ryu requires Python 3.9)
-sudo apt install python3.9 python3.9-venv python3.9-distutils -y
+# 2. Clone the project
+git clone https://github.com/botvecna47/SDN-Based-DDoS-Mitigation.git
+cd SDN-Based-DDoS-Mitigation
+
+# 3. Create Python 3.9 virtual environment
+#    Ryu does NOT work on Python 3.10+. Must use 3.9.
 python3.9 -m venv ryu39_env
 source ryu39_env/bin/activate
 
-# Downgrade setuptools so Ryu installs correctly, then install everything
+# 4. Install exact package versions (these versions matter — newer ones break Ryu)
 pip install setuptools==59.6.0 wheel==0.37.1
-pip install ryu flask flask-cors pandas scikit-learn filelock
 pip install eventlet==0.30.2
+pip install ryu flask flask-cors pandas scikit-learn filelock joblib
+
+# 5. Verify installation
+ryu-manager --version     # Should print: ryu 4.x
+python3 -c "import flask; print('Flask OK')"
+python3 -c "import filelock; print('Filelock OK')"
+```
+
+### On Windows
+
+```bash
+# In the project folder (where package.json is)
+npm install
 ```
 
 ---
 
-### 🔵 STEP 1 — Pull Latest Code (Every Session)
+## 🚀 Every-Session Launch Sequence
 
-Open a terminal in your Ubuntu VM inside the project folder and run:
-
-```bash
-git pull
-```
+Open **4 terminals** (3 on Ubuntu, 1 on Windows).
 
 ---
 
-### 🔴 STEP 2 — Start Ryu Controller (Ubuntu Terminal 1)
+### ① Ubuntu Terminal 1 — Ryu Controller
 
 ```bash
+cd SDN-Based-DDoS-Mitigation
+git pull                                        # Always pull latest before starting
 source ryu39_env/bin/activate
 ryu-manager controller/simple_monitor.py
 ```
 
-**✅ Wait for this message before continuing:**
+**✅ Success looks like:**
 ```
+loading app controller/simple_monitor.py
+instantiating app controller/simple_monitor.py of SimpleMonitor13
 Ryu is running
 ```
 
-> [!NOTE]
-> You will also see `detector.joblib not found — using threshold fallback (pps > 10000)`.
-> This is **completely normal** for the 50% demo. The controller still works perfectly.
+**Expected warning (this is fine, not an error):**
+```
+detector.joblib not found. Using PPS > 10000 threshold fallback
+```
+
+**🛑 DO NOT continue until you see Ryu is running.**
 
 ---
 
-### 🟡 STEP 3 — Start Flask API (Ubuntu Terminal 2)
+### ② Ubuntu Terminal 2 — Flask API
 
-Open a **new terminal tab** in your Ubuntu VM:
+Open a new Ubuntu terminal tab:
 
 ```bash
 cd SDN-Based-DDoS-Mitigation
@@ -96,208 +128,253 @@ cd backend_api
 python3 app.py
 ```
 
-**✅ Wait for this message before continuing:**
+**✅ Success looks like:**
 ```
 * Running on http://0.0.0.0:5000
-* Running on http://192.168.x.x:5000
+* Running on http://192.168.8.147:5000
 ```
+
+**Quick test** (from any machine on the network):
+```bash
+curl http://192.168.8.147:5000/api/health
+# Should return: {"status": "ok", "timestamp": "..."}
+```
+
+**🛑 DO NOT continue until Flask is serving on port 5000.**
 
 ---
 
-### 🟢 STEP 4 — Start Mininet Network (Ubuntu Terminal 3)
+### ③ Ubuntu Terminal 3 — Mininet Network
 
-Open a **third terminal tab** in your Ubuntu VM. **First, clean any leftover state:**
+Open a new Ubuntu terminal tab:
 
 ```bash
+# Step A: Clean any leftover state first (mandatory)
 sudo mn -c
-```
 
-Then start the network:
-
-```bash
+# Step B: Start the network
 cd SDN-Based-DDoS-Mitigation
 sudo python3 network/topo.py
 ```
 
-**✅ Immediately check Terminal 1 (Ryu). You MUST see:**
+**✅ Success looks like (in order):**
+```
+*** Creating network, connecting to controller at 127.0.0.1
+*** Starting iperf UDP server on h3
+*** Bootstrapping MAC learning with pingall
+h1 -> h2 h3
+h2 -> h1 h3
+h3 -> h1 h2
+*** Results: 0% dropped
+*** MAC learning complete. Network is ready.
+mininet>
+```
+
+> [!NOTE]
+> The `pingall` runs automatically. You do NOT need to type it manually anymore.
+> If you see `100% dropped` in the pingall output, stop immediately and restart from Step ①.
+
+**Simultaneously check Terminal 1 (Ryu) — you MUST see:**
 ```
 Registering datapath: 0000000000000001
 ```
-If you do NOT see this, Ryu and the switch are not connected — stop and restart from Step 2.
+If this line does not appear, the switch is not connected to Ryu. Restart from Step ①.
 
 ---
 
-### 🔵 STEP 5 — Verify Network with pingall
-
-At the `mininet>` prompt, type:
+### ④ Windows Terminal — React Dashboard
 
 ```bash
-mininet> pingall
-```
-
-**✅ You MUST see:**
-```
-*** Results: 0% dropped
-```
-
-> [!CAUTION]
-> If you see `100% dropped`, do NOT continue. Go back to Step 2 and do a full clean restart.
-> Run `sudo mn -c` first, then restart Ryu, then Flask, then Mininet again.
-
----
-
-### 🪟 STEP 6 — Start React Dashboard (Windows Terminal)
-
-Open a terminal on your **Windows machine** inside the project folder:
-
-```bash
-cd dashboard
+# In the project root (where package.json is)
 npm run dev
 ```
 
-Open your browser to: **http://localhost:5173**
+Open your browser at: **http://localhost:5173**
 
-Click the **"Live Flask API"** button at the top right of the dashboard.
+**✅ The dashboard opens in Live mode automatically** (already connected to `http://192.168.8.147:5000`).
 
-**✅ The yellow "Flask API Notice" warning should disappear**, confirming the connection to Ubuntu is live.
+> [!TIP]
+> If the dashboard shows "We couldn't load telemetry" error, click **"View demo instead"** to verify the UI itself is working, then check that Flask is running on the Ubuntu VM and reachable from Windows.
 
 ---
 
-## 🎬 Running the Demonstration
+## 🎬 Demo Walkthrough
 
-### Act 1 — Normal Traffic (Baseline)
+### Act 1 — Baseline: Normal Traffic
 
-At the `mininet>` prompt in Ubuntu Terminal 3:
-
-```bash
-mininet> h1 bash network/legit_traffic.sh
+At the Mininet `mininet>` prompt:
+```
+mininet> h1 bash network/legit_traffic.sh &
 ```
 
-**What you should see on the Windows dashboard:**
-- The blue line on the chart draws steady traffic (~800 PPS)
-- System status shows **"Normal Operation"** with a green dot
-- Total Ingress shows a non-zero PPS value
+**What you see on dashboard:**
+- 🔵 Blue line rises to ~0.8k PPS on the chart
+- Health card: **"All systems secure"** (green)
+- Dropped traffic: **0.00 TB**
+
+This is the legitimate user (h1) sending normal UDP traffic to the server (h3). The blue line is below the red threshold line — all traffic is being **allowed**.
 
 ---
 
-### Act 2 — Launch the DDoS Attack
+### Act 2 — DDoS Attack Launched
 
-At the `mininet>` prompt, open a terminal for the attacker:
-
-```bash
+```
 mininet> xterm h2
 ```
-
-A small black terminal window will appear. Type inside it:
-
+A small black terminal opens. Inside it type:
 ```bash
 sudo hping3 --flood --udp -p 80 10.0.0.3
 ```
 
-**What you should see on the Windows dashboard:**
-- The blue line **spikes past 8,000 PPS** (the orange detection threshold line)
-- Status changes to **"Under DDoS Attack"** with a red pulsing dot
-- The attacker IP `10.0.0.2` appears in the **Blocked IPs** table
+**What you see on dashboard (within 3 seconds):**
+- 📈 Blue line spikes dramatically above the red threshold line
+- Health card changes to: **"Threat detected"** (dark/red)
+- Ryu prints (in Terminal 1): `DDoS Detected from 10.0.0.2! Pushing drop rule...`
 
 ---
 
-### Act 3 — Watch the Autonomous Defense
+### Act 3 — Autonomous Mitigation
 
-Within 3 seconds of the attack starting, **without any manual command:**
+Without any manual command:
+- Ryu installs a **Priority 65535 DROP rule** for `10.0.0.2`
+- `10.0.0.2` appears in the **Blocked threats** table with reason: *"DDoS Signature Detected by ML"*
+- **Decision Intelligence** panel shows: ML Classification 72%, PPS Threshold 18%, OpenFlow Rule 10%
+- The teal "Dropped" line appears on the chart showing blocked traffic volume
+- h1's legitimate traffic **continues uninterrupted**
 
-- Ryu prints: `DDoS Detected from 10.0.0.2! Pushing drop rule...`
-- The OpenFlow DROP rule is installed at Priority 65535
-- Traffic from `10.0.0.2` is blocked at the switch level
-
-**The proof:** The legitimate iperf traffic from h1 continues running perfectly.
-
----
-
-### Act 4 — Stop the Attack (Recovery)
-
-Press `Ctrl+C` inside the xterm h2 window to stop hping3.
-
-**What you should see:**
-- The blue line drops back to the baseline (~800 PPS)
-- Status returns to **"Normal Operation"**
-- `10.0.0.2` remains in the blocked table (the idle_timeout is 300 seconds)
+To verify the DROP rule is installed on the switch:
+```
+mininet> sh ovs-ofctl dump-flows s1
+```
+You should see an entry with `priority=65535, nw_src=10.0.0.2` and `actions=drop`.
 
 ---
 
-## 🛑 Shutdown (End of Session)
+### Act 4 — Recovery
 
-1. Press `Ctrl+C` in the xterm h2 window (if attack is running)
-2. Type `exit` at the `mininet>` prompt in Terminal 3
-3. Press `Ctrl+C` in Terminal 2 (Flask)
-4. Press `Ctrl+C` in Terminal 1 (Ryu)
-5. Run cleanup: `sudo mn -c`
-6. Press `Ctrl+C` in your Windows terminal (React)
+Press `Ctrl+C` inside the xterm h2 window.
+
+**What you see on dashboard:**
+- Blue line drops back to ~0.8k PPS baseline
+- Health card returns to: **"All systems secure"** (green)
+- `10.0.0.2` remains listed in the Blocked threats table (the DROP rule has a 5-min idle timeout — this is by design, showing persistent protection)
+
+---
+
+### Flow Table (for inspection/demo)
+
+At any point you can see a human-readable breakdown of every OpenFlow rule:
+```bash
+curl http://192.168.8.147:5000/api/flow-table
+```
+
+This returns:
+- **ALLOWED flows** — which IPs are being forwarded and why
+- **BLOCKED flows** — which IPs have DROP rules and why
+- **Table-miss rule** — how unknown flows are handled (sent to controller for MAC learning)
+
+---
+
+## 🛑 Clean Shutdown
+
+```bash
+# 1. Stop attack (if running) — Ctrl+C in xterm h2
+# 2. Stop legit traffic — Ctrl+C at mininet> prompt
+# 3. Exit Mininet
+mininet> exit
+
+# 4. Clean OVS state
+sudo mn -c
+
+# 5. Ctrl+C in Terminal 2 (Flask)
+# 6. Ctrl+C in Terminal 1 (Ryu)
+# 7. Ctrl+C in Windows terminal (React)
+```
 
 ---
 
 ## 🔧 Troubleshooting
 
-| Problem | Cause | Fix |
+| Symptom | Cause | Fix |
 |---------|-------|-----|
-| `pingall` shows 100% dropped | Ryu and switch out of sync | `sudo mn -c`, restart Ryu first, then Mininet |
-| Dashboard shows "Failed to Fetch" | Wrong VM IP in config.js | Run `hostname -I` in Ubuntu, update `src/api/config.js` BASE_URL |
-| Total Ingress shows 0 pps | MAC learning not done | Run `pingall` first, then `legit_traffic.sh` |
-| `ryu-manager` command not found | Virtual env not activated | Run `source ryu39_env/bin/activate` |
-| `ModuleNotFoundError: filelock` | Library missing | Run `pip install filelock` inside activated venv |
-| `AttributeError: collections.MutableMapping` | Wrong Python version | Make sure you used `python3.9 -m venv ryu39_env` |
-| `ImportError: cannot import ALREADY_HANDLED` | Wrong eventlet version | Run `pip install eventlet==0.30.2` |
-| `xterm h2` window doesn't open | No display server in VM | In VMware, ensure you are using a full Desktop install, not a server install |
-| Chart not updating in Live mode | Not clicked "Live Flask API" | Click the green "Live Flask API" toggle in the dashboard header |
+| Mininet `pingall` shows 100% dropped | Ryu not running or wrong controller IP | Run `sudo mn -c`, restart Ryu first |
+| Dashboard shows "We couldn't load telemetry" | Flask not running or VM IP wrong | Check `python3 app.py` is running. API URL is hardcoded in `src/data.ts` as `http://192.168.8.147:5000` |
+| Chart stays flat at 0 PPS | MAC learning not bootstrapped | `pingall` now runs automatically on startup — if still 0, restart from Step ① |
+| `ryu-manager: command not found` | Virtualenv not active | `source ryu39_env/bin/activate` |
+| `ModuleNotFoundError: ryu` | Wrong Python version or wrong venv | Must use Python 3.9 venv: `python3.9 -m venv ryu39_env` |
+| `AttributeError: collections.MutableMapping` | Python 3.10+ used for Ryu | Recreate venv with `python3.9 -m venv ryu39_env` |
+| `ImportError: cannot import ALREADY_HANDLED` | eventlet version too new | `pip install eventlet==0.30.2` |
+| `ModuleNotFoundError: filelock` | Missing dependency | `pip install filelock` inside activated venv |
+| `get_script_args` error on `pip install ryu` | setuptools too new | `pip install setuptools==59.6.0 wheel==0.37.1` first |
+| Attack not detected (no DROP rule) | PPS too low or ML threshold missed | `hping3 --flood` generates >20k PPS which is well above 10k threshold |
+| Status stuck on UNDER_ATTACK after attack stops | Old bug — now fixed | After `git pull`, the hysteresis threshold is 5000 PPS |
+| `xterm h2` window does not open | No display in VM | Use VMware with full Desktop install, not Server |
 
 ---
 
-## 📡 Network Reference
+## 📡 Network & Config Reference
 
+### Mininet Hosts
 | Host | IP | MAC | Role |
 |------|----|-----|------|
 | h1 | `10.0.0.1` | `00:00:00:00:00:01` | Legitimate User |
 | h2 | `10.0.0.2` | `00:00:00:00:00:02` | Attacker |
-| h3 | `10.0.0.3` | `00:00:00:00:00:03` | Web Server |
-| s1 | — | — | OVS Switch |
-| Ryu | `127.0.0.1:6653` | — | SDN Controller |
-| Flask | `0.0.0.0:5000` | — | REST API |
-| React | `localhost:5173` | — | Dashboard |
+| h3 | `10.0.0.3` | `00:00:00:00:00:03` | Server (iperf target) |
+| s1 | — | — | OVS Switch (OpenFlow 1.3) |
+
+### Service Addresses
+| Service | Address | Notes |
+|---------|---------|-------|
+| Ryu Controller | `127.0.0.1:6653` | Listens for OVS switch connections |
+| Flask API | `0.0.0.0:5000` | Accessible from Windows at `192.168.8.147:5000` |
+| React Dashboard | `localhost:5173` | Runs on Windows only |
+| Ubuntu VM | `192.168.8.147` | Your VMware VM IP (verify with `hostname -I`) |
+
+### Key API Endpoints
+| Endpoint | What it returns |
+|----------|----------------|
+| `GET /api/network-stats` | Full telemetry snapshot for the dashboard chart |
+| `GET /api/health` | Simple liveness check |
+| `GET /api/flow-table` | Human-readable ALLOWED vs BLOCKED flow breakdown |
 
 ---
 
-## 🔑 Quick Reference — Key Commands
+## 📋 Quick Command Reference
 
 ```bash
-# Check Ubuntu VM IP (to put in config.js on Windows)
-hostname -I
-
-# Activate Python environment (run before Ryu and Flask every time)
+# Ubuntu — activate virtualenv (run this in every terminal before Ryu or Flask)
 source ryu39_env/bin/activate
 
-# Clean Mininet state (run before starting Mininet)
+# Ubuntu — pull latest code
+git pull
+
+# Ubuntu — clean leftover Mininet state (run before every topo.py)
 sudo mn -c
 
-# Start Ryu
+# Ubuntu — start Ryu controller
 ryu-manager controller/simple_monitor.py
 
-# Start Flask (from inside backend_api folder)
-python3 app.py
+# Ubuntu — start Flask API (from inside backend_api/)
+cd backend_api && python3 app.py
 
-# Start Mininet
+# Ubuntu — start Mininet
 sudo python3 network/topo.py
 
-# Test all hosts can communicate
-mininet> pingall
+# Mininet CLI — run legitimate traffic from h1
+h1 bash network/legit_traffic.sh &
 
-# Start legitimate traffic from h1
-mininet> h1 bash network/legit_traffic.sh
+# Mininet CLI — open attacker terminal
+xterm h2
 
-# Open attacker terminal
-mininet> xterm h2
-
-# Launch DDoS attack (run inside xterm h2)
+# Inside xterm h2 — launch DDoS attack
 sudo hping3 --flood --udp -p 80 10.0.0.3
 
-# Check active OpenFlow rules in switch
-mininet> sh ovs-ofctl dump-flows s1
+# Mininet CLI — check switch flow table
+sh ovs-ofctl dump-flows s1
+
+# Any machine — see allowed vs blocked flows in plain English
+curl http://192.168.8.147:5000/api/flow-table
+
+# Windows — start React dashboard
+npm run dev
 ```
