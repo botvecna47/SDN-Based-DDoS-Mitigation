@@ -72,7 +72,7 @@ export async function fetchSnapshot(range: string, signal: AbortSignal): Promise
   if (!endpoint) throw new Error('No backend endpoint configured. Set VITE_DEFENSE_API_URL to enable live mode.')
   const url = new URL(endpoint, window.location.href)
   url.searchParams.set('range', range)
-  const response = await fetch(url, { signal, credentials: 'include', headers: { Accept: 'application/json' } })
+  const response = await fetch(url, { signal, headers: { Accept: 'application/json' } })
   if (!response.ok) throw new Error(`Telemetry request failed (${response.status}). Check your connection and try again.`)
   return parseSnapshot(await response.json())
 }
