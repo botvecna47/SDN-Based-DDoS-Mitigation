@@ -1,5 +1,7 @@
 # 🛡️ SDN DDoS Mitigation — Running Guide
 
+> **Last updated: 2026-09-30** — New Sentinel UI, automatic MAC bootstrapping, auto-recovery after attacks, and Flow Table API. Always `git pull` on Ubuntu before starting.
+
 > **Save this file. Read it every time before you run the project.**
 
 ---

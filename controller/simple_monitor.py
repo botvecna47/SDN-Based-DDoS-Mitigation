@@ -220,7 +220,10 @@ class SimpleMonitor13(app_manager.RyuApp):
             self._run_inference(stats_dict, datapath)
             
         # Auto-recover status if traffic drops
-        current_status = "UNDER_ATTACK" if len(self.blocked_ips) > 0 and total_pps > 1000 else "NORMAL"
+        # UNDER_ATTACK only if we have blocked IPs AND current traffic is ABOVE the threshold (10k PPS)
+        # Using 5000 PPS as the hysteresis point so normal iperf (~800 PPS) doesn't re-trigger UNDER_ATTACK
+        # after the attack has been mitigated and traffic drops back to baseline.
+        current_status = "UNDER_ATTACK" if len(self.blocked_ips) > 0 and total_pps > 5000 else "NORMAL"
 
         # Update shared state
         update_state(
@@ -263,4 +266,7 @@ class SimpleMonitor13(app_manager.RyuApp):
             self.logger.warning(f"DDoS Detected from {src_ip}! Pushing drop rule...")
             push_drop_rule(datapath, src_ip)
             self.blocked_ips.add(src_ip)
+            # Immediately write UNDER_ATTACK status so Flask picks it up on next poll
+            # without waiting for the next 1.5s flow stats cycle
+            update_state(status="UNDER_ATTACK", blocked_ips=list(self.blocked_ips))
 
