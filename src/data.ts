@@ -20,7 +20,9 @@ export type Snapshot = {
   dropReasons: { reason: string; share: number }[]
 }
 
-export const endpoint = "http://192.168.8.147:5000/api/network-stats"
+// Use .env variable if it exists, otherwise fallback to your specific VM IP
+const envUrl = import.meta.env.VITE_DEFENSE_API_URL as string | undefined
+export const endpoint = envUrl || "http://192.168.8.147:5000/api/network-stats"
 
 const baseIngress = [30,35,32,38,35,42,36,39,44,40,43,48,42,47,45,51,48,54,50,46,52,55,49,57,54,58,53,60,56,63,58,65,62,69,66,73,64,68,62,70,66,72,68,75,70,74,71,78]
 

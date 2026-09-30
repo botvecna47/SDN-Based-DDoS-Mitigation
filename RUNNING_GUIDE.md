@@ -84,6 +84,14 @@ python3 -c "import filelock; print('Filelock OK')"
 npm install
 ```
 
+#### 🔌 Setting Your IP Address (For Teammates)
+If your teammate is running this on their own machine, their Ubuntu VM will have a different IP address. 
+They DO NOT need to edit the source code. Instead:
+1. Copy the `.env.example` file and rename it to `.env`
+2. Run `hostname -I` in their Ubuntu VM to get their IP.
+3. Edit the `.env` file and replace `192.168.8.147` with their IP:
+   `VITE_DEFENSE_API_URL="http://YOUR_VM_IP:5000/api/network-stats"`
+
 ---
 
 ## 🚀 Every-Session Launch Sequence
