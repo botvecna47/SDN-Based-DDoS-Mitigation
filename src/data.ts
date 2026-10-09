@@ -14,7 +14,14 @@ export type Snapshot = {
   health: 'operational' | 'degraded'
   endpointsOnline: number
   endpointsTotal: number
-  metrics: { ingressTb: number; droppedTb: number; activeRules: number; mlLatencyMs: number }
+  metrics: {
+    currentPps?: number
+    uptimeSec?: number
+    ingressTb: number
+    droppedTb: number
+    activeRules: number
+    mlLatencyMs: number
+  }
   traffic: { ingress: number[]; dropped: number[]; threshold: number }
   threats: Threat[]
   dropReasons: { reason: string; share: number }[]
@@ -24,30 +31,75 @@ export type Snapshot = {
 const envUrl = import.meta.env.VITE_DEFENSE_API_URL as string | undefined
 export const endpoint = envUrl || "http://192.168.8.147:5000/api/network-stats"
 
-const baseIngress = [30,35,32,38,35,42,36,39,44,40,43,48,42,47,45,51,48,54,50,46,52,55,49,57,54,58,53,60,56,63,58,65,62,69,66,73,64,68,62,70,66,72,68,75,70,74,71,78]
+// Baseline legitimate traffic in thousands of PPS (~0.7 to 0.9k PPS = 700-900 packets/sec)
+const baseIngress = [
+  0.72, 0.78, 0.81, 0.75, 0.84, 0.79, 0.82, 0.86, 0.80, 0.77, 
+  0.83, 0.88, 0.82, 0.79, 0.85, 0.81, 0.84, 0.89, 0.83, 0.80,
+  0.78, 0.85, 0.82, 0.87, 0.81, 0.79, 0.84, 0.88, 0.83, 0.81,
+  0.85, 0.89, 0.82, 0.86, 0.84, 0.88, 0.83, 0.80, 0.85, 0.87,
+  0.82, 0.88, 0.84, 0.81, 0.86, 0.89, 0.83, 0.85
+]
 
 export function demoSnapshot(attack = false, empty = false): Snapshot {
   if (empty) return {
     health: 'operational', endpointsOnline: 0, endpointsTotal: 0,
-    metrics: { ingressTb: 0, droppedTb: 0, activeRules: 0, mlLatencyMs: 0 },
-    traffic: { ingress: [], dropped: [], threshold: 72 }, threats: [], dropReasons: [],
+    metrics: { currentPps: 0, uptimeSec: 0, ingressTb: 0, droppedTb: 0, activeRules: 0, mlLatencyMs: 0 },
+    traffic: { ingress: [], dropped: [], threshold: 8 }, threats: [], dropReasons: [],
   }
-  const ingress = baseIngress.map((n, i) => attack && i > 31 ? Math.min(96, n + (i % 4) * 5 + 13) : n)
+  // If attack simulated, last 16 ticks surge to 20-25k PPS (flood)
+  const ingress = baseIngress.map((n, i) => attack && i > 31 ? 21.5 + (i % 4) * 0.8 : n)
+  const dropped = ingress.map((n, i) => (attack && i > 31 ? Number((n * 0.95).toFixed(2)) : 0))
+
   return {
-    health: attack ? 'degraded' : 'operational', endpointsOnline: 24, endpointsTotal: 24,
-    metrics: { ingressTb: attack ? 32.89 : 24.89, droppedTb: attack ? 3.81 : 1.21, activeRules: attack ? 1285 : 1284, mlLatencyMs: attack ? 14.8 : 12.4 },
-    traffic: { ingress, dropped: ingress.map((n, i) => Math.round(n * (attack && i > 31 ? .59 : .30) + Math.sin(i * 1.7) * 4 + 5)), threshold: 72 },
+    health: attack ? 'degraded' : 'operational',
+    endpointsOnline: 4, // h1, h2, h3, s1
+    endpointsTotal: 4,
+    metrics: {
+      currentPps: attack ? 22400 : 850,
+      uptimeSec: 360,
+      ingressTb: attack ? 0.08 : 0.04,
+      droppedTb: attack ? 0.07 : 0.00,
+      activeRules: attack ? 5 : 4,
+      mlLatencyMs: attack ? 3.4 : 2.9
+    },
+    traffic: {
+      ingress,
+      dropped,
+      threshold: 8 // 8.0k PPS threshold
+    },
     threats: [
-      ...(attack ? [{ ip: '203.0.113.241', country: 'Unknown origin', port: 443, protocol: 'TCP', reason: 'Simulated DDoS attack', time: 'Just now', score: 99, severity: 'Critical' as const }] : []),
-      { ip: '185.220.101.47', country: 'Russia', port: 443, protocol: 'TCP', reason: 'DDoS pattern detected', time: '2 mins ago', score: 98, severity: 'Critical' },
-      { ip: '103.253.24.89', country: 'China', port: 22, protocol: 'SSH', reason: 'Brute force attempt', time: '8 mins ago', score: 94, severity: 'Critical' },
-      { ip: '45.155.205.233', country: 'Netherlands', port: 8080, protocol: 'TCP', reason: 'Suspicious port scanning', time: '14 mins ago', score: 87, severity: 'High' },
-      { ip: '91.240.118.172', country: 'Ukraine', port: 3389, protocol: 'RDP', reason: 'Unauthorized access attempt', time: '26 mins ago', score: 82, severity: 'High' },
-      { ip: '198.51.100.42', country: 'United States', port: 80, protocol: 'HTTP', reason: 'Unusual traffic volume', time: '41 mins ago', score: 76, severity: 'Medium' },
+      ...(attack ? [{
+        ip: '10.0.0.2',
+        country: 'h2 (Attacker Host)',
+        port: 80,
+        protocol: 'UDP',
+        reason: 'hping3 UDP Flood (>20k PPS)',
+        time: 'Active',
+        score: 99,
+        severity: 'Critical' as const
+      }] : []),
+      {
+        ip: '10.0.0.2',
+        country: 'h2 (Attacker Host)',
+        port: 80,
+        protocol: 'UDP',
+        reason: 'Volumetric Rate Spike Anomaly',
+        time: '1 min ago',
+        score: 98,
+        severity: 'Critical'
+      }
     ] as Threat[],
     dropReasons: attack
-      ? [{ reason: 'DDoS mitigation', share: 61 }, { reason: 'Threat signatures', share: 19 }, { reason: 'Brute force', share: 13 }, { reason: 'Policy rules', share: 7 }]
-      : [{ reason: 'DDoS mitigation', share: 43 }, { reason: 'Threat signatures', share: 28 }, { reason: 'Brute force', share: 18 }, { reason: 'Policy rules', share: 11 }],
+      ? [
+          { reason: 'ML DDoS Model', share: 72 },
+          { reason: 'PPS Threshold Spike', share: 18 },
+          { reason: 'OpenFlow L3/L4 Match', share: 10 }
+        ]
+      : [
+          { reason: 'ML DDoS Model', share: 72 },
+          { reason: 'PPS Threshold Spike', share: 18 },
+          { reason: 'OpenFlow L3/L4 Match', share: 10 }
+        ],
   }
 }
 

@@ -51,21 +51,24 @@ def network_stats():
             history_dropped.append(mitigated_pps / 1000.0)
             last_update_time = now
 
-        # Convert simple list of blocked IPs into the structured Threat object the new UI expects
+        # Convert simple list of blocked IPs into the structured Threat object the UI expects
         threats = []
         for i, blocked in enumerate(blocked_ips):
+            ip_val = blocked if isinstance(blocked, str) else blocked.get("ip", "Unknown")
+            # Map known Mininet IPs to host labels
+            host_label = "h2 (Attacker Host)" if ip_val == "10.0.0.2" else ("h1 (Legitimate User)" if ip_val == "10.0.0.1" else ("h3 (Target Server)" if ip_val == "10.0.0.3" else "Mininet Host"))
             threats.append({
-                "ip": blocked if isinstance(blocked, str) else blocked.get("ip", "Unknown"),
-                "country": "Local Mininet",
+                "ip": ip_val,
+                "country": host_label,
                 "port": 80,
                 "protocol": "UDP",
-                "reason": "DDoS Signature Detected by ML" if status == "UNDER_ATTACK" else "Flow Anomaly",
-                "score": 98 - i,
+                "reason": "DDoS Volumetric Spike (ML & Threshold)" if status == "UNDER_ATTACK" else "Flow Anomaly Rule Active",
+                "score": max(85, 98 - i),
                 "severity": "Critical",
-                "time": "Just now"
+                "time": "Active"
             })
 
-        # Calculate TB metrics (simulated/estimated based on pps for the visual cards)
+        # Calculate TB metrics (kept for backward compatibility)
         ingress_tb = sum(history_ingress) / 1000.0
         dropped_tb = sum(history_dropped) / 1000.0
 
@@ -74,6 +77,8 @@ def network_stats():
             "endpointsOnline": 4, # h1, h2, h3, s1
             "endpointsTotal": 4,
             "metrics": {
+                "currentPps": int(current_pps),
+                "uptimeSec": int(state.get("controller_uptime_sec", 0)),
                 "ingressTb": float(max(0.01, ingress_tb)), 
                 "droppedTb": float(dropped_tb), 
                 "activeRules": int(active_flows + len(threats)), 
