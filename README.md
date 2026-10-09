@@ -1,89 +1,114 @@
-﻿# SDN-Based DDoS Detection and Mitigation System
+# SDN DDoS Mitigation Project
 
-> **Academic Project | 3-Member Team | 12-Week Execution Plan**
+A comprehensive Software-Defined Networking (SDN) project that detects and mitigates Distributed Denial of Service (DDoS) attacks in real-time. Designed for an academic setting, this system utilizes a Ryu controller to collect OpenFlow statistics, applies Machine Learning (with a robust threshold fallback) to identify malicious traffic, immediately installs blocking rules on an OVS switch, and visualizes the network state on a React dashboard.
 
-A smart network defense system that detects volumetric DDoS attacks in real time and autonomously blocks them at the SDN switch edge — without dropping legitimate user traffic.
+## Architecture Diagram
 
----
-
-## Quick Navigation
-
-| Document | Who Should Read It | What It Covers |
-|---|---|---|
-| `docs/PRD.md` | Everyone | Problem, solution, features, success metrics |
-| `docs/SRS.md` | Everyone | All functional & non-functional requirements (FR-001 to FR-015) |
-| `docs/ARCHITECTURE.md` | Everyone | System diagrams — component, sequence, data flow, state machine |
-| `docs/API_SCHEMA.md` | Lead + Friend 2 | Exact JSON contract between Flask API and React dashboard |
-| `docs/TEAM_PLAN.md` | Everyone | Who owns what, week-by-week tasks, acceptance criteria per member |
-| `docs/SDLC_PHASES.md` | Everyone | 3-phase plan, integration checkpoints, testing checklists |
-| `docs/DEMO_SCRIPT.md` | Everyone | Final presentation script, Q&A prep, backup plans |
-
----
-
-## Team Structure
-
-| Member | Role | Owns | Key Output |
-|---|---|---|---|
-| **You (Lead)** | Backend & ML Engineer | /controller/, /backend_api/, /ml_pipeline/ | Ryu controller + Flask API + trained detector.joblib |
-| **Friend 1** | Network & Traffic Engineer | /network/ | topo.py, legit_traffic.sh, attack_traffic.sh |
-| **Friend 2** | Frontend & QA Engineer | /dashboard/ | React dashboard + integration test results |
-
----
-
-## Milestone Summary
-
-| Phase | Weeks | Target | Definition of Done |
-|---|---|---|---|
-| Phase 1 | 1-4 | **45%** | Network alive, CSV logging data, React shows mock chart |
-| Phase 2 | 5-8 | **70%** | ML detects attack, Flask API live, dashboard updates in real time |
-| Phase 3 | 9-12 | **100%** | Autonomous ML inference, polished UI, benchmarks recorded, demo-ready |
-
----
-
-## Critical Dependencies Between Members
-
-```
-Day 1:   Lead -> Friend 2   Deliver docs/API_SCHEMA.md (JSON contract)
-Week 2:  Friend 1 -> Lead   Confirm topo.py connects to Ryu on port 6653
-Week 4:  Friend 1 -> Lead   Run traffic scripts so CSV captures training data
-Week 7:  Lead -> Friend 2   Flask API running on localhost:5000
-Week 11: Friend 1 -> Friend 2   Run hping3 attack for UI stress testing
+```mermaid
+flowchart TD
+    subgraph Ubuntu VM [Ubuntu VM - 192.168.8.147]
+        M[Mininet Topo] -->|OpenFlow 1.3| R[Ryu Controller]
+        R -->|Writes via Filelock| SS[(shared_state.json)]
+        F[Flask API] -->|Reads| SS
+    end
+    subgraph Windows Host
+        RD[React Dashboard] -->|HTTP REST| F
+    end
 ```
 
----
+## Quick Start
 
-## Getting Started — First Action Per Member
+### Ubuntu VM (Backend & Network)
+Open 4 separate terminals and run:
 
-### Lead (You):
+**Terminal 1 (Mininet):**
 ```bash
-python -m venv ryu-env
-ryu-env\Scripts\activate
-pip install ryu flask flask-cors scikit-learn pandas numpy joblib jupyter
-ryu-manager ryu.app.simple_switch_13
+sudo mn -c
+sudo python3 network/topo.py
 ```
 
-### Friend 1 (Ubuntu VM):
+**Terminal 2 (Ryu Controller):**
 ```bash
-sudo apt update && sudo apt install -y mininet openvswitch-switch hping3 iperf python3
-sudo mn --test pingall
+source ryu39_env/bin/activate
+ryu-manager controller/simple_monitor.py
 ```
 
-### Friend 2:
+**Terminal 3 (Flask API):**
 ```bash
-node --version   # Must be 18+
-npm create vite@latest dashboard -- --template react
-cd dashboard && npm install tailwindcss recharts axios
-npm run dev      # Open localhost:5173
+source ryu39_env/bin/activate
+cd backend_api
+python3 app.py
 ```
 
----
+**Terminal 4 (Legit Traffic):**
+```bash
+# In Mininet CLI:
+mininet> xterm h1
+# In h1 xterm:
+./network/legit_traffic.sh
+```
 
-> **READ docs/TEAM_PLAN.md before writing any code.**
-> It tells each member exactly what to build, in what order, and how to verify it works.
+### Windows Host (Frontend)
+Open 1 terminal in the project root:
 
----
+```powershell
+npm install
+npm run dev
+```
 
-## 🚨 CRITICAL TEAM WARNINGS (READ BEFORE STARTING)
+## Project Structure
 
-1. **The IP Address Trap:** If Friend 1 is using a Virtual Machine for Mininet, and Lead is running the Controller on the Host PC, Mininet **CANNOT** connect to `127.0.0.1`. The VM network adapter must be set to "Bridged", and Friend 1 must use the Lead's real IPv4 address (e.g., `192.168.x.x`) in the `topo.py` script.
-2. **Data Labeling Coordination:** In Week 4, when logging the baseline CSV, the Controller doesn't know what an attack is yet. Friend 1 MUST record the exact clock time they run the attack script (e.g., "14:05:00 to 14:07:00") and give those times to the Lead. The Lead will use those timestamps to manually label the CSV (`1` for Attack, `0` for Normal) before training the ML model.
+```text
+DDoS Mitigation/
+├── backend_api/
+│   ├── app.py                 # Flask REST API reading shared state
+│   └── shared_state.json      # Inter-Process Communication state file
+├── controller/
+│   ├── simple_monitor.py      # Ryu app polling stats & driving logic
+│   ├── mitigation.py          # Pushes OpenFlow DROP rules to switch
+│   ├── inference_loader.py    # Loads ML model / threshold logic
+│   └── traffic_dataset.csv    # Live traffic logging for datasets
+├── docs/                      # Documentation folder
+├── ml_pipeline/               # Scripts and notebooks for ML training
+├── network/
+│   ├── topo.py                # Mininet topology script (h1, h2, h3, s1)
+│   └── *.sh                   # Traffic generation scripts
+├── src/                       # React frontend source code (App.tsx, etc.)
+└── README.md                  # This file
+```
+
+## How It Works
+
+1. **Traffic Generation:** Mininet orchestrates endpoints. Legitimate traffic flows from `h1`, while attack traffic is flooded from `h2` towards `h3`.
+2. **Statistics Collection:** The Ryu controller (`simple_monitor.py`) queries the OVS switch (`s1`) for flow statistics every 1.5 seconds.
+3. **Detection:** Ryu uses an inference loader to classify traffic. Currently, it defaults to a threshold mechanism (if Packets Per Second > 10,000, it marks the flow as a DDoS attack).
+4. **Mitigation & Visualization:** Upon detection, Ryu instructs `mitigation.py` to push a high-priority DROP rule to `s1`. Simultaneously, Ryu updates `shared_state.json`. Flask serves this updated state to the React dashboard, dynamically painting the UI red.
+
+## Configuration
+
+To configure the dashboard to point to your specific Ubuntu VM IP:
+1. Copy `.env.example` to `.env` in the root directory.
+2. Edit `.env` to set `VITE_DEFENSE_API_URL` to your Flask endpoint, e.g., `http://192.168.8.147:5000/api/network-stats`.
+
+## Documentation Index
+
+| Document | Description |
+|---|---|
+| [Architecture](docs/ARCHITECTURE.md) | Deep dive into system components, data flows, and state logic. |
+| [API Schema](docs/API_SCHEMA.md) | Contract for the Flask REST API endpoints and data models. |
+| [Demo Script](docs/DEMO_SCRIPT.md) | Step-by-step guide to showcasing the project in a presentation. |
+
+## Team
+
+| Role | Responsibility |
+|---|---|
+| **Lead** | Backend Architecture & Machine Learning Pipelines |
+| **Friend 1** | Network Topology & Ryu Controller Logic |
+| **Friend 2** | React Frontend Dashboard & Quality Assurance |
+
+## Current Status
+
+- **Implemented & Working:** Mininet network, Ryu controller, IPC state sharing, Flask API, React dashboard, automated mitigation rules.
+- **Pending:** The ML model (`detector.joblib`) is not yet fully trained. The controller currently uses a resilient threshold fallback (PPS > 10,000) for detection.
+
+*Last Updated: 2026-10-09*
