@@ -57,16 +57,19 @@ function smoothPath(values: number[], ceiling: number) {
   }, '')
 }
 
-function TrafficChart({ traffic, tick }: { traffic: Snapshot['traffic']; tick: number }) {
+function TrafficChart({ traffic }: { traffic: Snapshot['traffic'] }) {
   const [hover, setHover] = useState<number | null>(null)
-  const ceiling = Math.max(12, traffic.threshold * 1.35, ...traffic.ingress, ...traffic.dropped)
-  const ingress = traffic.ingress.map((n, i) => Math.max(0, n + (tick ? Math.sin(i * 0.7 + tick) * 0.08 : 0)))
-  const dropped = traffic.dropped.map((n, i) => Math.max(0, n + (tick ? Math.sin(i * 0.8 + tick) * 0.08 : 0)))
+  const maxVal = Math.max(traffic.threshold, ...traffic.ingress, ...traffic.dropped)
+  // Stepped, stable ceiling: locked at 12k during normal, steps stably to 28k during attack
+  // This guarantees the Y-axis never jitters or bounces up and down every second
+  const ceiling = maxVal > 9 ? 28 : 12
+  const ingress = traffic.ingress
+  const dropped = traffic.dropped
   const ingressPath = smoothPath(ingress, ceiling)
   const droppedPath = smoothPath(dropped, ceiling)
   const activeHover = hover === null ? null : Math.min(hover, ingress.length - 1)
   const x = activeHover === null ? 0 : 45 + activeHover * (935 / (ingress.length - 1))
-  const y = activeHover === null ? 0 : 220 - Math.min(1, ingress[activeHover] / ceiling) * 190
+  const y = activeHover === null ? 0 : 220 - Math.min(1, (ingress[activeHover] || 0) / ceiling) * 190
 
   return (
     <div className="relative mt-6 select-none">
@@ -178,6 +181,38 @@ export default function App() {
   const [activeNav, setActiveNav] = useState('Overview')
   const [mobileMenu, setMobileMenu] = useState(false)
 
+  // Dynamic sliding window buffer for authentic demo simulation
+  const [demoTraffic, setDemoTraffic] = useState<{ ingress: number[]; dropped: number[] }>(() => {
+    const init = Array.from({ length: 48 }, (_, i) => 
+      Number((0.82 + Math.sin(i * 0.4) * 0.05).toFixed(2))
+    )
+    return { ingress: init, dropped: new Array(48).fill(0) }
+  })
+
+  // When scenario changes, pre-fill window so preset takes effect immediately
+  useEffect(() => {
+    if (source !== 'demo') return
+    if (scenario === 'attack') {
+      setDemoTraffic({
+        ingress: Array.from({ length: 48 }, (_, i) => 
+          i > 24 
+            ? Number((22.4 + Math.sin(i * 0.7) * 1.5).toFixed(2)) 
+            : Number((0.82 + Math.sin(i * 0.4) * 0.05).toFixed(2))
+        ),
+        dropped: Array.from({ length: 48 }, (_, i) => 
+          i > 24 ? Number((22.4 * 0.95).toFixed(2)) : 0
+        )
+      })
+    } else if (scenario === 'normal') {
+      setDemoTraffic({
+        ingress: Array.from({ length: 48 }, (_, i) => 
+          Number((0.82 + Math.sin(i * 0.4) * 0.05).toFixed(2))
+        ),
+        dropped: new Array(48).fill(0)
+      })
+    }
+  }, [scenario, source])
+
   useEffect(() => {
     if (source === 'demo') {
       setSnapshot(null)
@@ -201,16 +236,37 @@ export default function App() {
     return () => controller.abort()
   }, [source, retry, streaming])
 
+  // Rolling update every second: in demo mode, streams newly generated packets from right to left
   useEffect(() => {
     if (!streaming) return
     const interval = window.setInterval(() => {
-      if (source === 'live') setRetry(value => value + 1)
-      else setTick(value => value + 1)
+      if (source === 'live') {
+        setRetry(value => value + 1)
+      } else {
+        setTick(t => {
+          const nextTick = t + 1
+          const isAttack = scenario === 'attack'
+          const nextIngress = isAttack 
+            ? Number((22.4 + Math.sin(nextTick * 0.7) * 1.6 + (Math.random() * 0.8 - 0.4)).toFixed(2))
+            : Number((0.82 + Math.sin(nextTick * 0.4) * 0.06 + (Math.random() * 0.04 - 0.02)).toFixed(2))
+          const nextDropped = isAttack 
+            ? Number((nextIngress * 0.95).toFixed(2))
+            : 0
+
+          setDemoTraffic(prev => ({
+            ingress: [...prev.ingress.slice(1), nextIngress],
+            dropped: [...prev.dropped.slice(1), nextDropped]
+          }))
+          return nextTick
+        })
+      }
     }, 1000)
     return () => window.clearInterval(interval)
-  }, [source, streaming])
+  }, [source, streaming, scenario])
 
-  const data = source === 'demo' ? demoSnapshot(scenario === 'attack', scenario === 'empty') : snapshot
+  const data = source === 'demo' 
+    ? demoSnapshot(scenario === 'attack', scenario === 'empty', demoTraffic.ingress, demoTraffic.dropped) 
+    : snapshot
   const loading = source === 'demo' ? scenario === 'loading' : loadState === 'loading'
   const failed = source === 'demo' ? scenario === 'error' : loadState === 'error'
   const empty = !!data && data.endpointsTotal === 0 && data.traffic.ingress.length === 0 && data.threats.length === 0
@@ -487,7 +543,7 @@ export default function App() {
                 </div>
 
                 {data.traffic.ingress.length > 1 ? (
-                  <TrafficChart traffic={data.traffic} tick={source === 'demo' ? tick : 0} />
+                  <TrafficChart traffic={data.traffic} />
                 ) : (
                   <div className="py-16 text-center text-sm text-slate-400">
                     Awaiting traffic packets from Mininet...

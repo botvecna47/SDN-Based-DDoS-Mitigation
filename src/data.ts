@@ -40,66 +40,66 @@ const baseIngress = [
   0.82, 0.88, 0.84, 0.81, 0.86, 0.89, 0.83, 0.85
 ]
 
-export function demoSnapshot(attack = false, empty = false): Snapshot {
+export function demoSnapshot(
+  attack = false, 
+  empty = false,
+  customIngress?: number[],
+  customDropped?: number[]
+): Snapshot {
   if (empty) return {
     health: 'operational', endpointsOnline: 0, endpointsTotal: 0,
     metrics: { currentPps: 0, uptimeSec: 0, ingressTb: 0, droppedTb: 0, activeRules: 0, mlLatencyMs: 0 },
     traffic: { ingress: [], dropped: [], threshold: 8 }, threats: [], dropReasons: [],
   }
-  // If attack simulated, last 16 ticks surge to 20-25k PPS (flood)
-  const ingress = baseIngress.map((n, i) => attack && i > 31 ? 21.5 + (i % 4) * 0.8 : n)
-  const dropped = ingress.map((n, i) => (attack && i > 31 ? Number((n * 0.95).toFixed(2)) : 0))
+
+  const ingress = customIngress && customIngress.length === 48 
+    ? customIngress 
+    : (attack ? baseIngress.map((n, i) => i > 28 ? Number((22.0 + (i % 3) * 0.7).toFixed(2)) : n) : baseIngress)
+
+  const dropped = customDropped && customDropped.length === 48
+    ? customDropped
+    : ingress.map(n => (n > 8 ? Number((n * 0.95).toFixed(2)) : 0))
+
+  const latestVal = ingress[ingress.length - 1] ?? 0.8
+  const currentPps = Math.round(latestVal * 1000)
+  const isAttackActive = latestVal > 8 || attack
 
   return {
-    health: attack ? 'degraded' : 'operational',
+    health: isAttackActive ? 'degraded' : 'operational',
     endpointsOnline: 4, // h1, h2, h3, s1
     endpointsTotal: 4,
     metrics: {
-      currentPps: attack ? 22400 : 850,
-      uptimeSec: 360,
-      ingressTb: attack ? 0.08 : 0.04,
-      droppedTb: attack ? 0.07 : 0.00,
-      activeRules: attack ? 5 : 4,
-      mlLatencyMs: attack ? 3.4 : 2.9
+      currentPps,
+      uptimeSec: 420,
+      ingressTb: isAttackActive ? 0.08 : 0.04,
+      droppedTb: isAttackActive ? 0.07 : 0.00,
+      activeRules: isAttackActive ? 5 : 4,
+      mlLatencyMs: isAttackActive ? 3.4 : 2.8
     },
     traffic: {
       ingress,
       dropped,
       threshold: 8 // 8.0k PPS threshold
     },
-    threats: [
-      ...(attack ? [{
-        ip: '10.0.0.2',
-        country: 'h2 (Attacker Host)',
-        port: 80,
-        protocol: 'UDP',
-        reason: 'hping3 UDP Flood (>20k PPS)',
-        time: 'Active',
-        score: 99,
-        severity: 'Critical' as const
-      }] : []),
+    threats: isAttackActive ? [
       {
         ip: '10.0.0.2',
         country: 'h2 (Attacker Host)',
         port: 80,
         protocol: 'UDP',
-        reason: 'Volumetric Rate Spike Anomaly',
-        time: '1 min ago',
-        score: 98,
+        reason: 'UDP Flood Attack (>20,000 pkts/s)',
+        time: 'Active',
+        score: 99,
         severity: 'Critical'
       }
-    ] as Threat[],
-    dropReasons: attack
+    ] : [],
+    dropReasons: isAttackActive
       ? [
-          { reason: 'ML DDoS Model', share: 72 },
-          { reason: 'PPS Threshold Spike', share: 18 },
-          { reason: 'OpenFlow L3/L4 Match', share: 10 }
+          { reason: 'Volume Spike Detected', share: 72 },
+          { reason: 'Rate Limit Exceeded', share: 18 },
+          { reason: 'Firewall Rule Match', share: 10 }
         ]
-      : [
-          { reason: 'ML DDoS Model', share: 72 },
-          { reason: 'PPS Threshold Spike', share: 18 },
-          { reason: 'OpenFlow L3/L4 Match', share: 10 }
-        ],
+      : [],
   }
 }
 
