@@ -95,9 +95,9 @@ export function demoSnapshot(
     ] : [],
     dropReasons: isAttackActive
       ? [
-          { reason: 'Volume Spike Detected', share: 72 },
-          { reason: 'Rate Limit Exceeded', share: 18 },
-          { reason: 'Firewall Rule Match', share: 10 }
+          { reason: 'ML DDoS Classification', share: 72 },
+          { reason: 'PPS Threshold Breach', share: 18 },
+          { reason: 'OpenFlow DROP Rule', share: 10 }
         ]
       : [],
   }

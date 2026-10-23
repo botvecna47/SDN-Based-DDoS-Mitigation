@@ -35,20 +35,20 @@ def network_stats():
         if "error" in state:
             return jsonify({"error": state["error"]}), 503
 
-        current_pps = state.get("current_pps", 0)
+        current_pps = max(0.0, float(state.get("current_pps", 0)))
         status = state.get("status", "NORMAL")
         blocked_ips = state.get("blocked_ips", [])
-        active_flows = state.get("active_flows", 0)
+        active_flows = max(0, int(state.get("active_flows", 0)))
 
         # Estimate dropped traffic (if mitigating, we drop ~95% of attack volume)
-        mitigated_pps = current_pps * 0.95 if status == "UNDER_ATTACK" else 0
+        mitigated_pps = current_pps * 0.95 if status == "UNDER_ATTACK" else 0.0
         
         # We only want to append to the chart history once per second max,
         # otherwise fast API polling will artificially squash the chart time window.
         now = time.time()
         if now - last_update_time >= 1.0:
-            history_ingress.append(current_pps / 1000.0) # UI expects values in "k" (thousands)
-            history_dropped.append(mitigated_pps / 1000.0)
+            history_ingress.append(round(current_pps / 1000.0, 2)) # UI expects values in "k" (thousands)
+            history_dropped.append(round(mitigated_pps / 1000.0, 2))
             last_update_time = now
 
         # Convert simple list of blocked IPs into the structured Threat object the UI expects
@@ -81,7 +81,7 @@ def network_stats():
                 "uptimeSec": int(state.get("controller_uptime_sec", 0)),
                 "ingressTb": float(max(0.01, ingress_tb)), 
                 "droppedTb": float(dropped_tb), 
-                "activeRules": int(active_flows + len(threats)), 
+                "activeRules": int(max(active_flows, len(threats) + 1)), 
                 "mlLatencyMs": float(state.get("inference_latency_ms", 3.1))
             },
             "traffic": {

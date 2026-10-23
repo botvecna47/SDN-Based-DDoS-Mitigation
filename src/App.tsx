@@ -59,12 +59,21 @@ function smoothPath(values: number[], ceiling: number) {
 
 function TrafficChart({ traffic }: { traffic: Snapshot['traffic'] }) {
   const [hover, setHover] = useState<number | null>(null)
-  const maxVal = Math.max(traffic.threshold, ...traffic.ingress, ...traffic.dropped)
+  const ingress = traffic.ingress || []
+  const dropped = traffic.dropped || []
+
+  if (ingress.length < 2) {
+    return (
+      <div className="py-16 text-center text-sm text-slate-400">
+        Awaiting traffic packets from Mininet...
+      </div>
+    )
+  }
+
+  const maxVal = Math.max(traffic.threshold, ...ingress, ...dropped)
   // Stepped, stable ceiling: locked at 12k during normal, steps stably to 28k during attack
   // This guarantees the Y-axis never jitters or bounces up and down every second
   const ceiling = maxVal > 9 ? 28 : 12
-  const ingress = traffic.ingress
-  const dropped = traffic.dropped
   const ingressPath = smoothPath(ingress, ceiling)
   const droppedPath = smoothPath(dropped, ceiling)
   const activeHover = hover === null ? null : Math.min(hover, ingress.length - 1)
@@ -127,9 +136,9 @@ function TrafficChart({ traffic }: { traffic: Snapshot['traffic'] }) {
         {activeHover !== null && (
           <div 
             className="pointer-events-none absolute rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm text-white shadow-xl"
-            style={{ left: `${Math.min(84, Math.max(10, x / 10))}%`, top: `${Math.max(8, y / 2.5 - 20)}%`, transform: 'translate(-50%, -100%)' }}
+            style={{ left: `${Math.min(84, Math.max(12, (x / 1000) * 100))}%`, top: `${Math.max(10, Math.min(75, (y / 250) * 100))}%`, transform: 'translate(-50%, -100%)' }}
           >
-            <div className="text-xs text-slate-400">{48 - activeHover}s ago</div>
+            <div className="text-xs text-slate-400">{ingress.length - 1 - activeHover}s ago</div>
             <div className="font-semibold mono mt-0.5">{Math.round((ingress[activeHover] || 0) * 1000).toLocaleString()} incoming / sec</div>
             <div className="font-semibold text-teal-400 mono">{Math.round((dropped[activeHover] || 0) * 1000).toLocaleString()} blocked / sec</div>
           </div>
@@ -175,11 +184,29 @@ export default function App() {
   const [error, setError] = useState('')
   const [retry, setRetry] = useState(0)
   const [streaming, setStreaming] = useState(true)
-  const [tick, setTick] = useState(0)
   const [search, setSearch] = useState('')
   const [severity, setSeverity] = useState('All severity')
   const [activeNav, setActiveNav] = useState('Overview')
   const [mobileMenu, setMobileMenu] = useState(false)
+
+  const targetHost = (() => {
+    try {
+      return new URL(endpoint).host
+    } catch {
+      return '192.168.8.147:5000'
+    }
+  })()
+
+  const retryRequest = () => {
+    setError('')
+    if (source === 'live') {
+      setLoadState('loading')
+      setRetry(value => value + 1)
+    } else {
+      setScenario('normal')
+      setLoadState('ready')
+    }
+  }
 
   // Dynamic sliding window buffer for authentic demo simulation
   const [demoTraffic, setDemoTraffic] = useState<{ ingress: number[]; dropped: number[] }>(() => {
@@ -208,6 +235,11 @@ export default function App() {
         ingress: Array.from({ length: 48 }, (_, i) => 
           Number((0.82 + Math.sin(i * 0.4) * 0.05).toFixed(2))
         ),
+        dropped: new Array(48).fill(0)
+      })
+    } else if (scenario === 'empty') {
+      setDemoTraffic({
+        ingress: new Array(48).fill(0),
         dropped: new Array(48).fill(0)
       })
     }
@@ -243,21 +275,20 @@ export default function App() {
       if (source === 'live') {
         setRetry(value => value + 1)
       } else {
-        setTick(t => {
-          const nextTick = t + 1
-          const isAttack = scenario === 'attack'
+        if (scenario === 'empty') return
+        const isAttack = scenario === 'attack'
+        setDemoTraffic(prev => {
           const nextIngress = isAttack 
-            ? Number((22.4 + Math.sin(nextTick * 0.7) * 1.6 + (Math.random() * 0.8 - 0.4)).toFixed(2))
-            : Number((0.82 + Math.sin(nextTick * 0.4) * 0.06 + (Math.random() * 0.04 - 0.02)).toFixed(2))
+            ? Number((22.4 + Math.sin(Date.now() / 1000 * 0.7) * 1.6 + (Math.random() * 0.8 - 0.4)).toFixed(2))
+            : Number((0.82 + Math.sin(Date.now() / 1000 * 0.4) * 0.06 + (Math.random() * 0.04 - 0.02)).toFixed(2))
           const nextDropped = isAttack 
             ? Number((nextIngress * 0.95).toFixed(2))
             : 0
 
-          setDemoTraffic(prev => ({
+          return {
             ingress: [...prev.ingress.slice(1), nextIngress],
             dropped: [...prev.dropped.slice(1), nextDropped]
-          }))
-          return nextTick
+          }
         })
       }
     }, 1000)
@@ -335,7 +366,7 @@ export default function App() {
             {source === 'live' ? 'Connected to Controller' : 'Demo Simulation Mode'}
           </div>
           <div className="mt-1 text-xs text-slate-500">
-            {source === 'live' ? 'Target: 192.168.8.147:5000' : 'Sample traffic loaded'}
+            {source === 'live' ? `Target: ${targetHost}` : 'Sample traffic loaded'}
           </div>
         </div>
       </aside>
@@ -630,6 +661,17 @@ export default function App() {
                         className="w-36 sm:w-44 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
                       />
                     </div>
+                    <select
+                      value={severity}
+                      onChange={event => setSeverity(event.target.value)}
+                      aria-label="Filter by severity"
+                      className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-xs sm:text-sm font-medium text-slate-700 outline-none hover:bg-slate-50"
+                    >
+                      <option value="All severity">All Severities</option>
+                      <option value="Critical">Critical</option>
+                      <option value="High">High</option>
+                      <option value="Medium">Medium</option>
+                    </select>
                     <button 
                       disabled={!rows.length} 
                       onClick={() => exportCsv(rows)} 
@@ -693,7 +735,7 @@ export default function App() {
               SDN DDoS Mitigation Project · Built with Ryu Controller &amp; Mininet
             </div>
             <div>
-              Academic Demo · {source === 'live' ? 'Connected to 192.168.8.147' : 'Simulation Mode'}
+              Academic Demo · {source === 'live' ? `Connected to ${targetHost}` : 'Simulation Mode'}
             </div>
           </footer>
         </main>

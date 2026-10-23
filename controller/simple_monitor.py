@@ -31,6 +31,7 @@ class SimpleMonitor13(app_manager.RyuApp):
         self.datapaths = {}
         self.start_time = time.time()
         self.blocked_ips = set()
+        self.blocked_ips_timestamps = {} # src_ip -> timestamp when blocked
         self.flow_history = {} # dict of (datapath.id, src_ip, dst_ip) -> (prev_pkt, prev_byte, prev_time)
         
         # Initialize the shared state
@@ -171,8 +172,17 @@ class SimpleMonitor13(app_manager.RyuApp):
         
         current_time = time.time()
         controller_uptime_sec = current_time - self.start_time
+
+        # Clean up expired blocked IPs (matching OpenFlow idle_timeout=300s)
+        expired_ips = [ip for ip, btime in self.blocked_ips_timestamps.items() if current_time - btime > 300]
+        for ip in expired_ips:
+            self.logger.info(f"OpenFlow rule for {ip} reached idle_timeout (300s). Removing from blocklist.")
+            self.blocked_ips.discard(ip)
+            del self.blocked_ips_timestamps[ip]
         
         total_pps = 0.0
+        attack_detected_this_cycle = False
+        latest_inference_ms = 3.1
         
         for stat in body:
             # We are only interested in IPv4 flows
@@ -196,9 +206,12 @@ class SimpleMonitor13(app_manager.RyuApp):
                 prev_pkt, prev_byte, prev_time = self.flow_history[flow_key]
                 time_delta = current_time - prev_time
                 if time_delta > 0:
-                    pps = (packet_count - prev_pkt) / time_delta
-                    # calculate bps, byte_count is in bytes, so * 8 for bits
-                    bps = ((byte_count - prev_byte) * 8) / time_delta
+                    pkt_delta = packet_count - prev_pkt
+                    byte_delta = byte_count - prev_byte
+                    if pkt_delta > 0:
+                        pps = pkt_delta / time_delta
+                    if byte_delta > 0:
+                        bps = (byte_delta * 8) / time_delta
             
             total_pps += pps
             
@@ -217,13 +230,20 @@ class SimpleMonitor13(app_manager.RyuApp):
             }
             
             self._log_to_csv(stats_dict)
-            self._run_inference(stats_dict, datapath)
+            detected, inf_ms = self._run_inference(stats_dict, datapath)
+            if detected:
+                attack_detected_this_cycle = True
+            latest_inference_ms = inf_ms
             
         # Auto-recover status if traffic drops
-        # UNDER_ATTACK only if we have blocked IPs AND current traffic is ABOVE the threshold (10k PPS)
-        # Using 5000 PPS as the hysteresis point so normal iperf (~800 PPS) doesn't re-trigger UNDER_ATTACK
-        # after the attack has been mitigated and traffic drops back to baseline.
-        current_status = "UNDER_ATTACK" if len(self.blocked_ips) > 0 and total_pps > 5000 else "NORMAL"
+        # UNDER_ATTACK only if an attack was detected in this cycle OR
+        # if blocked IPs exist and traffic is still above recovery threshold (5000 PPS).
+        if attack_detected_this_cycle:
+            current_status = "UNDER_ATTACK"
+        elif len(self.blocked_ips) > 0 and total_pps > 5000:
+            current_status = "UNDER_ATTACK"
+        else:
+            current_status = "NORMAL"
 
         # Update shared state
         update_state(
@@ -231,7 +251,8 @@ class SimpleMonitor13(app_manager.RyuApp):
             blocked_ips=list(self.blocked_ips),
             current_pps=total_pps,
             active_flows=len(body),
-            status=current_status
+            status=current_status,
+            inference_latency_ms=latest_inference_ms
         )
 
     def _log_to_csv(self, stats_dict):
@@ -251,7 +272,7 @@ class SimpleMonitor13(app_manager.RyuApp):
         """Extract features, run through ML model, and mitigate if DDoS detected."""
         src_ip = stats_dict['src_ip']
         if src_ip in self.blocked_ips:
-            return  # Already blocked
+            return False, 3.1  # Already blocked
 
         is_ddos, inference_ms = self.detector.predict(
             pps=stats_dict['pps'],
@@ -260,13 +281,15 @@ class SimpleMonitor13(app_manager.RyuApp):
             packet_count=stats_dict['packet_count']
         )
 
-        # We store inference_ms in self so it can be passed in the main loop if desired, 
-        # or just rely on the baseline. For simplicity, we can let Flask assume the latency.
         if is_ddos:
             self.logger.warning(f"DDoS Detected from {src_ip}! Pushing drop rule...")
             push_drop_rule(datapath, src_ip)
             self.blocked_ips.add(src_ip)
+            self.blocked_ips_timestamps[src_ip] = time.time()
             # Immediately write UNDER_ATTACK status so Flask picks it up on next poll
             # without waiting for the next 1.5s flow stats cycle
-            update_state(status="UNDER_ATTACK", blocked_ips=list(self.blocked_ips))
+            update_state(status="UNDER_ATTACK", blocked_ips=list(self.blocked_ips), inference_latency_ms=inference_ms)
+            return True, inference_ms
+
+        return False, inference_ms
 
