@@ -1,3 +1,8 @@
+# Raw datasets (~22 GB) and archives
+Datasets/
+*.zip
+*.csv
+
 # Logs
 logs
 *.log
@@ -16,6 +21,10 @@ dist-ssr
 !.env.example
 __pycache__/
 *.py[cod]
+*$py.class
+.venv/
+env/
+venv/
 ryu39_env/
 ryu-env/
 backend_api/shared_state.json
@@ -29,6 +38,7 @@ ml_pipeline/data/processed/labeled_dataset.csv
 !.vscode/extensions.json
 .idea
 .DS_Store
+Thumbs.db
 *.suo
 *.ntvs*
 *.njsproj
