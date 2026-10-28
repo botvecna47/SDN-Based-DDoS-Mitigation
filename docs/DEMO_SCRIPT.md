@@ -10,16 +10,16 @@ Ensure all components are running before presenting.
    source ryu39_env/bin/activate
    ryu-manager controller/simple_monitor.py
    ```
-2. **Terminal 2 (Mininet, Ubuntu VM):**
-   ```bash
-   sudo mn -c
-   sudo python3 network/topo.py
-   ```
-3. **Terminal 3 (Flask, Ubuntu VM):**
+2. **Terminal 2 (Flask, Ubuntu VM):**
    ```bash
    source ryu39_env/bin/activate
    cd backend_api
    python3 app.py
+   ```
+3. **Terminal 3 (Mininet, Ubuntu VM):**
+   ```bash
+   sudo mn -c
+   sudo python3 network/topo.py
    ```
 4. **Terminal 4 (React, Windows Host):**
    ```powershell
@@ -60,11 +60,11 @@ sudo hping3 --flood --udp -p 80 10.0.0.3
 # In Mininet CLI:
 mininet> sh ovs-ofctl dump-flows s1
 ```
-**Talk Track:** "Within 1.5 seconds, Ryu detects the PPS threshold breach (>10k). The system immediately marks state as UNDER_ATTACK. A high-priority DROP rule (65535) is pushed to OVS. You can see the dashboard flash red, update the threats table, and track dropped packets."
+**Talk Track:** "Within a few statistics cycles, Ryu detects the PPS threshold breach (>10k) when the fallback is active. A high-priority DROP rule (65535) is pushed to OVS. The dashboard shows the attacker's blocked-flow counters while h1's legitimate traffic continues."
 
 ## 6. Act 4: Recovery (1 min)
 **Action:** Stop the `hping3` command in `h2` xterm.
-**Talk Track:** "Once the attack halts, PPS drops below 5,000. The system automatically recovers, setting health back to operational."
+**Talk Track:** "Once the attack halts, dropped PPS falls back to zero and the network status returns to operational. The attacker remains in the blocked table until the switch's idle-timeout removes the rule after five minutes without matching traffic."
 
 ## 7. Bonus: Flow Table Inspection
 **Action:** In an Ubuntu terminal, run:
@@ -97,7 +97,7 @@ A: Python 3.9 in the `ryu39_env` virtual environment for Ryu compatibility.
 A: Yes, Flask is configured with `CORS(origins="*")` to permit the React dev server to communicate easily.
 
 **Q: What triggers a recovery?**
-A: When the system registers that blocked IPs exist and the total incoming PPS falls below 5,000.
+A: The status returns to operational when traffic falls below 5,000 PPS; the blocked record stays until the switch confirms that its idle-timeout removed the rule.
 
 ## 9. Backup Plans
 - **Mininet crashes:** `sudo mn -c` to clean up and restart.

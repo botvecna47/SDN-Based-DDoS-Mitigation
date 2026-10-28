@@ -1,10 +1,14 @@
-﻿ryu
+# Critical Ryu compatibility pins (Ryu requires Python 3.9, setuptools < 60, eventlet == 0.30.2)
+setuptools==59.6.0
+wheel==0.37.1
+eventlet==0.30.2
+
+# Core SDN controller & backend dependencies
+ryu
 flask
 flask-cors
 scikit-learn
 pandas
 numpy
 joblib
-
 filelock
-

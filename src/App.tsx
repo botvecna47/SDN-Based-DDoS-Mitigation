@@ -41,7 +41,7 @@ function Icon({ name, size = 18, className = '' }: { name: IconName; size?: numb
   )
 }
 
-const timelineLabels = ['-48s', '-40s', '-32s', '-24s', '-16s', '-8s', 'Live (Now)']
+const timelineLabels = ['-48s', '-40s', '-32s', '-24s', '-16s', '-8s']
 
 function smoothPath(values: number[], ceiling: number) {
   if (values.length < 2) return ''
@@ -57,7 +57,7 @@ function smoothPath(values: number[], ceiling: number) {
   }, '')
 }
 
-function TrafficChart({ traffic }: { traffic: Snapshot['traffic'] }) {
+function TrafficChart({ traffic, source }: { traffic: Snapshot['traffic']; source: 'demo' | 'live' }) {
   const [hover, setHover] = useState<number | null>(null)
   const ingress = traffic.ingress || []
   const dropped = traffic.dropped || []
@@ -146,7 +146,10 @@ function TrafficChart({ traffic }: { traffic: Snapshot['traffic'] }) {
       </div>
 
       <div className="ml-[4.5%] flex justify-between pt-3 text-xs sm:text-sm font-medium text-slate-500 mono">
-        {timelineLabels.map(label => <span key={label}>{label}</span>)}
+        {timelineLabels.map((label, idx) => (
+          <span key={label} className={idx % 2 === 1 ? 'hidden sm:inline' : ''}>{label}</span>
+        ))}
+        <span>{source === 'demo' ? 'Preview (Now)' : 'Live (Now)'}</span>
       </div>
     </div>
   )
@@ -166,8 +169,8 @@ function MetricCard({ label, value, unit, detail }: { label: string; value: stri
 }
 
 function exportCsv(rows: Threat[]) {
-  const fields = ['Source IP', 'Host node', 'Target port', 'Protocol', 'Reason', 'Confidence', 'Status']
-  const csv = [fields, ...rows.map(row => [row.ip, row.country, row.port, row.protocol, row.reason, `${row.score}%`, 'Blocked'])].map(row => row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(',')).join('\n')
+  const fields = ['Source IP', 'Host node', 'Target port', 'Protocol', 'Reason', 'Rule Priority', 'Status']
+  const csv = [fields, ...rows.map(row => [row.ip, row.country, row.port, row.protocol, row.reason, 65535, 'Blocked'])].map(row => row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(',')).join('\n')
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
   const link = document.createElement('a')
   link.href = url
@@ -177,8 +180,11 @@ function exportCsv(rows: Threat[]) {
 }
 
 export default function App() {
-  const [source, setSource] = useState<'demo' | 'live'>(endpoint ? 'live' : 'demo')
+  // Start in the self-contained simulator so the dashboard is presentation-ready
+  // even when the Ubuntu VM is not reachable yet.
+  const [source, setSource] = useState<'demo' | 'live'>('demo')
   const [scenario, setScenario] = useState<'normal' | 'attack' | 'empty' | 'loading' | 'error'>('normal')
+  const [demoBlocked, setDemoBlocked] = useState(false)
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null)
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [error, setError] = useState('')
@@ -193,7 +199,7 @@ export default function App() {
     try {
       return new URL(endpoint).host
     } catch {
-      return '192.168.8.147:5000'
+      return 'VM address not configured'
     }
   })()
 
@@ -216,47 +222,30 @@ export default function App() {
     return { ingress: init, dropped: new Array(48).fill(0) }
   })
 
-  // When scenario changes, pre-fill window so preset takes effect immediately
-  useEffect(() => {
-    if (source !== 'demo') return
-    if (scenario === 'attack') {
+  const chooseDemoScenario = (next: typeof scenario) => {
+    setScenario(next)
+    if (next === 'attack') {
+      setDemoBlocked(true)
       setDemoTraffic({
-        ingress: Array.from({ length: 48 }, (_, i) => 
-          i > 24 
-            ? Number((22.4 + Math.sin(i * 0.7) * 1.5).toFixed(2)) 
-            : Number((0.82 + Math.sin(i * 0.4) * 0.05).toFixed(2))
-        ),
-        dropped: Array.from({ length: 48 }, (_, i) => 
-          i > 24 ? Number((22.4 * 0.95).toFixed(2)) : 0
-        )
+        ingress: Array.from({ length: 48 }, (_, i) => i > 24 ? Number((22.4 + Math.sin(i * 0.7) * 1.5).toFixed(2)) : Number((0.82 + Math.sin(i * 0.4) * 0.05).toFixed(2))),
+        dropped: Array.from({ length: 48 }, (_, i) => i > 24 ? Number((22.4 * 0.95).toFixed(2)) : 0),
       })
-    } else if (scenario === 'normal') {
+    } else if (next === 'normal') {
+      setDemoBlocked(false)
       setDemoTraffic({
-        ingress: Array.from({ length: 48 }, (_, i) => 
-          Number((0.82 + Math.sin(i * 0.4) * 0.05).toFixed(2))
-        ),
-        dropped: new Array(48).fill(0)
+        ingress: Array.from({ length: 48 }, (_, i) => Number((0.82 + Math.sin(i * 0.4) * 0.05).toFixed(2))),
+        dropped: new Array(48).fill(0),
       })
-    } else if (scenario === 'empty') {
-      setDemoTraffic({
-        ingress: new Array(48).fill(0),
-        dropped: new Array(48).fill(0)
-      })
+    } else if (next === 'empty') {
+      setDemoBlocked(false)
+      setDemoTraffic({ ingress: new Array(48).fill(0), dropped: new Array(48).fill(0) })
     }
-  }, [scenario, source])
-
-  useEffect(() => {
-    if (source === 'demo') {
-      setSnapshot(null)
-      setLoadState('loading')
-    }
-  }, [source])
+  }
 
   useEffect(() => {
     if (source !== 'live' || !streaming) return
     const controller = new AbortController()
-    setLoadState(current => current === 'ready' ? 'ready' : 'loading')
-    fetchSnapshot('live', controller.signal).then(data => {
+    fetchSnapshot(controller.signal).then(data => {
       setSnapshot(data)
       setLoadState('ready')
       setError('')
@@ -296,11 +285,13 @@ export default function App() {
   }, [source, streaming, scenario])
 
   const data = source === 'demo' 
-    ? demoSnapshot(scenario === 'attack', scenario === 'empty', demoTraffic.ingress, demoTraffic.dropped) 
+    ? demoSnapshot(scenario === 'attack', scenario === 'empty', demoTraffic.ingress, demoTraffic.dropped, demoBlocked)
     : snapshot
   const loading = source === 'demo' ? scenario === 'loading' : loadState === 'loading'
   const failed = source === 'demo' ? scenario === 'error' : loadState === 'error'
   const empty = !!data && data.endpointsTotal === 0 && data.traffic.ingress.length === 0 && data.threats.length === 0
+  const offline = data?.health === 'offline'
+  const underAttack = data?.health === 'degraded'
   const rows = (data?.threats || []).filter(row => (severity === 'All severity' || row.severity === severity) && `${row.ip} ${row.country} ${row.port} ${row.reason}`.toLowerCase().includes(search.toLowerCase()))
 
   const navItems = [
@@ -312,6 +303,7 @@ export default function App() {
 
   const latestIngressK = data?.traffic.ingress.length ? data.traffic.ingress[data.traffic.ingress.length - 1] : 0
   const currentPps = data?.metrics.currentPps !== undefined ? data.metrics.currentPps : Math.round(latestIngressK * 1000)
+  const noTraffic = source === 'live' && !offline && !underAttack && currentPps === 0 && !data?.threats.length
   const peakIngressK = data?.traffic.ingress.length ? Math.max(...data.traffic.ingress) : 0
   const peakPps = Math.round(peakIngressK * 1000)
 
@@ -392,7 +384,7 @@ export default function App() {
                 Demo
               </button>
               <button 
-                onClick={() => { setSource('live'); setStreaming(true) }} 
+                onClick={() => { setLoadState('loading'); setSource('live'); setStreaming(true) }}
                 disabled={!endpoint} 
                 className={`rounded-md px-3 py-1.5 transition-colors ${source === 'live' ? 'bg-white text-slate-900 shadow-sm font-semibold' : 'text-slate-500 hover:text-slate-800'}`}
               >
@@ -401,7 +393,7 @@ export default function App() {
             </div>
 
             <button
-              onClick={() => setScenario(scenario === 'attack' ? 'normal' : 'attack')}
+              onClick={() => chooseDemoScenario(scenario === 'attack' ? 'normal' : 'attack')}
               disabled={source === 'live'}
               className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs sm:text-sm font-semibold transition-colors ${
                 scenario === 'attack' && source === 'demo'
@@ -412,6 +404,14 @@ export default function App() {
               <Icon name={scenario === 'attack' && source === 'demo' ? 'pause' : 'play'} size={14} />
               {scenario === 'attack' && source === 'demo' ? 'Stop Attack' : 'Simulate Attack'}
             </button>
+            {source === 'demo' && demoBlocked && (
+              <button
+                onClick={() => { setDemoBlocked(false); chooseDemoScenario('normal') }}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Reset demo
+              </button>
+            )}
           </div>
         </header>
 
@@ -424,7 +424,7 @@ export default function App() {
                 Network Traffic &amp; DDoS Monitor
               </h1>
               <p className="mt-2.5 text-base sm:text-lg text-slate-600 max-w-3xl leading-relaxed">
-                Live packet flow monitoring and automatic DDoS attack defense for Mininet virtual network.
+                {source === 'demo' ? 'Presentation preview of packet-flow monitoring and DDoS defense for the Mininet virtual network.' : 'Live packet flow monitoring and automatic DDoS attack defense for Mininet virtual network.'}
               </p>
             </div>
 
@@ -433,7 +433,7 @@ export default function App() {
                 <span className="font-medium">Scenario Preset:</span>
                 <select 
                   value={scenario} 
-                  onChange={event => setScenario(event.target.value as typeof scenario)} 
+                  onChange={event => chooseDemoScenario(event.target.value as typeof scenario)}
                   className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-800 shadow-sm"
                 >
                   <option value="normal">Normal Baseline (iperf)</option>
@@ -473,38 +473,50 @@ export default function App() {
             <>
               {/* TOP SECTION: Prominent Full-Width Status Banner (No more awkward narrow aspect ratio) */}
               <div className={`panel-card mt-8 sm:mt-10 p-6 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6 border-l-4 ${
-                data.health === 'degraded' 
-                  ? 'border-l-red-500 bg-red-50/50 border-red-200' 
-                  : 'border-l-emerald-500 bg-emerald-50/40 border-emerald-200'
+                underAttack
+                  ? 'border-l-red-500 bg-red-50/50 border-red-200'
+                  : offline
+                    ? 'border-l-slate-400 bg-slate-100/60 border-slate-200'
+                    : 'border-l-emerald-500 bg-emerald-50/40 border-emerald-200'
               }`}>
                 <div>
                   <div className="flex items-center gap-2.5">
-                    <span className={`h-3 w-3 rounded-full ${data.health === 'degraded' ? 'bg-red-500 animate-ping' : 'bg-emerald-500'}`} />
-                    <span className={`text-xs sm:text-sm font-bold uppercase tracking-wider ${data.health === 'degraded' ? 'text-red-700' : 'text-emerald-700'}`}>
-                      {data.health === 'degraded' ? 'DDoS Attack in Progress' : 'Network Operating Normally'}
+                    <span className={`h-3 w-3 rounded-full ${underAttack ? 'bg-red-500 animate-ping' : offline ? 'bg-slate-400' : 'bg-emerald-500'}`} />
+                    <span className={`text-xs sm:text-sm font-bold uppercase tracking-wider ${underAttack ? 'text-red-700' : offline ? 'text-slate-600' : 'text-emerald-700'}`}>
+                      {source === 'demo' && underAttack ? 'Simulated DDoS Attack · Demo Mode' : underAttack ? 'DDoS Attack in Progress' : offline ? 'Mininet Switch Offline' : noTraffic ? 'Switch Connected · No Traffic' : 'Network Operating Normally'}
                     </span>
                   </div>
                   <h2 className="mt-2 text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
-                    {empty ? 'Awaiting Traffic Telemetry' : data.health === 'degraded' ? 'Malicious Traffic Is Being Blocked' : 'All Network Flows Are Safe'}
+                    {empty || noTraffic ? 'Waiting for Traffic' : offline ? 'Waiting for Ryu and Mininet' : underAttack && source === 'demo' ? 'Simulated Attack Preview' : underAttack ? 'Malicious Traffic Is Being Blocked' : data.threats.length ? 'Attack Stopped · Block Rule Retained' : 'All Network Flows Are Safe'}
                   </h2>
                   <p className="mt-2 max-w-3xl text-sm sm:text-base text-slate-600 leading-relaxed">
-                    {empty 
-                      ? 'Mininet is currently idle. Run legitimate traffic or an attack script to view live response.' 
-                      : data.health === 'degraded' 
+                    {empty || noTraffic
+                      ? source === 'demo' ? 'This empty preview contains no simulated traffic. Select a scenario or use Live mode to view Mininet telemetry.' : 'Mininet is connected but no packets have been observed. Start the h1 traffic script or an attack from h2 to populate the live dashboard.'
+                      : offline
+                      ? 'The telemetry API is reachable, but no recent OpenFlow statistics are arriving from the switch. Start Ryu and the Mininet topology to connect the live dashboard.'
+                      : underAttack && source === 'demo'
+                      ? 'This is a presentation simulation: it shows the expected h2 flood response but sends no packets and installs no switch rule. Use Live mode to present VMware telemetry.'
+                      : underAttack
                       ? 'High-rate packet flood detected from host h2 (10.0.0.2). Attack packets are being dropped immediately at switch s1, while real user h1 continues communicating normally.' 
-                      : 'Ryu controller is polling switch s1 every 1.5 seconds. Traffic from legitimate user host h1 is moving freely to server h3.'}
+                      : data.threats.length
+                        ? source === 'demo'
+                          ? 'The simulated flood has stopped. The demo keeps its blocked-device row visible until you select Reset Demo.'
+                          : 'The flood has stopped. The attacker remains in the blocked-device list while its switch rule is retained until the rule expires.'
+                        : source === 'demo'
+                          ? 'This presentation preview simulates a normal baseline and sends no packets to Mininet. Use Live mode to show traffic from the VMware topology.'
+                          : 'Ryu controller is polling switch s1 every 1.5 seconds. Traffic from legitimate user host h1 is moving freely to server h3.'}
                   </p>
                 </div>
 
                 <div className="flex md:flex-col items-center md:items-end justify-between gap-2.5 border-t md:border-t-0 md:border-l border-slate-200 pt-4 md:pt-0 md:pl-8 shrink-0">
                   <div className="text-xs sm:text-sm font-medium text-slate-500">Switch Defense Policy</div>
                   <div className={`text-sm sm:text-base font-bold px-3.5 py-1.5 rounded-full ${
-                    data.health === 'degraded' ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'
+                    underAttack ? 'bg-red-100 text-red-800' : offline ? 'bg-slate-200 text-slate-700' : data.threats.length ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
                   }`}>
-                    {data.health === 'degraded' ? 'DROP Active (Priority 65535)' : 'Normal Forwarding'}
+                    {source === 'demo' && data.threats.length ? 'Simulated DROP State · Demo' : offline ? 'Waiting for Switch' : underAttack ? 'DROP Active (Priority 65535)' : data.threats.length ? 'DROP Rule Retained (Priority 65535)' : noTraffic ? 'Normal Forwarding · Idle' : 'Normal Forwarding'}
                   </div>
                   <div className="text-xs sm:text-sm text-slate-500 mt-0.5">
-                    {data.endpointsOnline}/{data.endpointsTotal} Mininet Nodes Connected
+                    {source === 'demo' ? 'Simulation · no live switch connection' : `${data.endpointsOnline}/${data.endpointsTotal} Switch Telemetry Link`}
                   </div>
                 </div>
               </div>
@@ -515,25 +527,25 @@ export default function App() {
                   label="Current Traffic Rate" 
                   value={currentPps.toLocaleString()} 
                   unit="pkts/s" 
-                  detail="Live packets moving across all switch ports"
+                  detail={source === 'demo' ? 'Simulated packet rate · presentation mode' : 'Observed packet rate from switch flow counters'}
                 />
                 <MetricCard 
                   label="Highest Traffic (Peak)" 
                   value={peakPps.toLocaleString()} 
                   unit="pkts/s" 
-                  detail="Peak spike recorded in recent 48-second window"
+                  detail={source === 'demo' ? 'Simulated peak in the recent 48-second window' : 'Peak in the recent 48-second window'}
                 />
                 <MetricCard 
                   label="Active Network Rules" 
                   value={data.metrics.activeRules.toLocaleString()} 
                   unit="Rules" 
-                  detail="Active flow table rules installed on switch s1"
+                  detail={source === 'demo' ? 'Simulated flow-rule count · no switch connected' : 'Flow-table rules reported by switch s1'}
                 />
                 <MetricCard 
-                  label="Defense Reaction Time" 
+                  label="Classification Latency"
                   value={data.metrics.mlLatencyMs.toFixed(1)} 
                   unit="ms" 
-                  detail="Average time to inspect traffic &amp; apply defense"
+                  detail={source === 'demo' ? 'Simulated classification delay' : 'Latest per-flow classification time'}
                 />
               </div>
 
@@ -542,14 +554,14 @@ export default function App() {
                 <div className="flex flex-wrap items-center justify-between gap-5">
                   <div>
                     <div className="flex items-center gap-3">
-                      <h2 className="text-lg sm:text-xl font-bold text-slate-900">Live Network Traffic</h2>
+                      <h2 className="text-lg sm:text-xl font-bold text-slate-900">{source === 'demo' ? 'Network Traffic Preview' : 'Live Network Traffic'}</h2>
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 border border-emerald-200">
                         <span className={`h-2 w-2 rounded-full bg-emerald-500 ${streaming ? 'live-dot' : ''}`} />
-                        {streaming ? 'Live Streaming' : 'Paused'}
+                        {streaming ? source === 'demo' ? 'Simulation Streaming' : 'Live Streaming' : 'Paused'}
                       </span>
                     </div>
                     <p className="mt-1.5 text-sm sm:text-base text-slate-500">
-                      Comparing incoming traffic vs. blocked traffic over the last 48 seconds
+                      {source === 'demo' ? 'Simulated traffic preview; it sends no packets to Mininet.' : 'Aggregate switch traffic vs. blocked traffic over 48 seconds. The fallback threshold is per flow, so it is a direct comparison only when one flow dominates.'}
                     </p>
                   </div>
 
@@ -561,7 +573,7 @@ export default function App() {
                       <span className="h-3 w-3 rounded-full bg-teal-600" /> Blocked Traffic
                     </span>
                     <span className="flex items-center gap-2 text-slate-500">
-                      <span className="h-0.5 w-4 bg-red-400" /> Limit (8,000 pkts/s)
+                      <span className="h-0.5 w-4 bg-red-400" /> Per-flow fallback ({Math.round(data.traffic.threshold * 1000).toLocaleString()} pkts/s)
                     </span>
                     <button 
                       onClick={() => setStreaming(!streaming)} 
@@ -574,7 +586,7 @@ export default function App() {
                 </div>
 
                 {data.traffic.ingress.length > 1 ? (
-                  <TrafficChart traffic={data.traffic} />
+                  <TrafficChart traffic={data.traffic} source={source} />
                 ) : (
                   <div className="py-16 text-center text-sm text-slate-400">
                     Awaiting traffic packets from Mininet...
@@ -593,19 +605,19 @@ export default function App() {
                     <div className="flex items-start gap-4">
                       <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white mt-0.5">1</span>
                       <div>
-                        <strong className="text-slate-900">Watch Traffic:</strong> The controller checks how many packets are moving through the switch every second.
+                        <strong className="text-slate-900">Watch Traffic:</strong> {source === 'demo' ? 'This preview simulates the traffic chart; Live mode displays switch counters.' : 'The controller checks how many packets are moving through the switch every second.'}
                       </div>
                     </div>
                     <div className="flex items-start gap-4">
                       <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white mt-0.5">2</span>
                       <div>
-                        <strong className="text-slate-900">Spot Abnormal Spikes:</strong> If traffic suddenly jumps over 8,000 packets per second, it is flagged as an attack.
+                        <strong className="text-slate-900">Detect Attacks:</strong> {data.detectionMode === 'simulation' ? 'The demo simulates a detection event and does not classify real traffic.' : data.detectionMode === 'machine_learning' ? 'The loaded ML model classifies observed flows.' : `The PPS fallback flags individual flows above ${Math.round(data.traffic.threshold * 1000).toLocaleString()} packets per second.`}
                       </div>
                     </div>
                     <div className="flex items-start gap-4">
                       <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white mt-0.5">3</span>
                       <div>
-                        <strong className="text-slate-900">Block the Attacker:</strong> The switch immediately drops all packets from that device. Real users stay connected.
+                        <strong className="text-slate-900">Block the Attacker:</strong> {source === 'demo' ? 'The demo displays the expected mitigation state. It installs no switch rule.' : 'The switch immediately drops packets from that device. Real users stay connected.'}
                       </div>
                     </div>
                   </div>
@@ -689,7 +701,7 @@ export default function App() {
                         <th className="py-4 px-6">Device &amp; IP</th>
                         <th className="py-4 px-6">Protocol</th>
                         <th className="py-4 px-6">Why It Was Blocked</th>
-                        <th className="py-4 px-6">Confidence</th>
+                        <th className="py-4 px-6">Rule Priority</th>
                         <th className="py-4 px-6 text-right">Status</th>
                       </tr>
                     </thead>
@@ -707,7 +719,7 @@ export default function App() {
                             {row.reason}
                           </td>
                           <td className="py-4.5 px-6 font-semibold text-slate-800 mono">
-                            {row.score}%
+                            65535
                           </td>
                           <td className="py-4.5 px-6 text-right">
                             <span className="inline-flex rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-700">
@@ -721,7 +733,7 @@ export default function App() {
 
                   {!rows.length && (
                     <div className="py-12 text-center text-sm text-slate-400">
-                      No devices are currently blocked. The network is clean.
+                      {data.threats.length ? 'No blocked devices match the current search or severity filter.' : 'No devices are currently blocked. The network is clean.'}
                     </div>
                   )}
                 </div>

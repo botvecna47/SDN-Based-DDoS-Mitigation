@@ -13,7 +13,7 @@ def push_drop_rule(datapath, src_ip):
              We use OFPIT_CLEAR_ACTIONS with an empty list, meaning DROP the packet.
     - priority: Highest priority (65535) so this rule overrides normal forwarding rules.
     - idle_timeout: Rule expires if no matching packets are seen for 300 seconds (5 mins).
-    - hard_timeout: Rule forcefully expires after 600 seconds (10 mins) regardless of activity.
+    - The idle timeout removes the rule after five minutes without matching traffic.
     """
     ofproto = datapath.ofproto
     parser = datapath.ofproto_parser
@@ -35,7 +35,8 @@ def push_drop_rule(datapath, src_ip):
         instructions=instructions,
         command=ofproto.OFPFC_ADD,
         idle_timeout=300,  # Auto-expire after 5 minutes of inactivity
-        hard_timeout=600   # Auto-expire after 10 minutes total
+        hard_timeout=0,
+        flags=ofproto.OFPFF_SEND_FLOW_REM
     )
     
     # Send the rule to the switch

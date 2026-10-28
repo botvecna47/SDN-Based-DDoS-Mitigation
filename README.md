@@ -21,31 +21,23 @@ flowchart TD
 ### Ubuntu VM (Backend & Network)
 Open 4 separate terminals and run:
 
-**Terminal 1 (Mininet):**
-```bash
-sudo mn -c
-sudo python3 network/topo.py
-```
-
-**Terminal 2 (Ryu Controller):**
+**Terminal 1 (Ryu Controller):**
 ```bash
 source ryu39_env/bin/activate
 ryu-manager controller/simple_monitor.py
 ```
 
-**Terminal 3 (Flask API):**
+**Terminal 2 (Flask API):**
 ```bash
 source ryu39_env/bin/activate
 cd backend_api
 python3 app.py
 ```
 
-**Terminal 4 (Legit Traffic):**
+**Terminal 3 (Mininet):**
 ```bash
-# In Mininet CLI:
-mininet> xterm h1
-# In h1 xterm:
-./network/legit_traffic.sh
+sudo mn -c
+sudo python3 network/topo.py
 ```
 
 ### Windows Host (Frontend)
@@ -56,13 +48,15 @@ npm install
 npm run dev
 ```
 
+The dashboard starts in Demo mode for presentations. To use VMware telemetry, configure `VITE_DEFENSE_API_URL` in `.env`, restart Vite, and select **Live** after the Flask API and Mininet switch are running.
+
 ## Project Structure
 
 ```text
 DDoS Mitigation/
 ├── backend_api/
 │   ├── app.py                 # Flask REST API reading shared state
-│   └── shared_state.json      # Inter-Process Communication state file
+│   └── shared_state.json      # Generated at runtime; ignored by Git
 ├── controller/
 │   ├── simple_monitor.py      # Ryu app polling stats & driving logic
 │   ├── mitigation.py          # Pushes OpenFlow DROP rules to switch
@@ -77,11 +71,13 @@ DDoS Mitigation/
 └── README.md                  # This file
 ```
 
+The root `src/` dashboard is the runnable frontend. `dashboard/` is an old placeholder and `CybersecurityDashboardUIUX/` is a separate design submodule; neither is started by the root Vite app.
+
 ## How It Works
 
 1. **Traffic Generation:** Mininet orchestrates endpoints. Legitimate traffic flows from `h1`, while attack traffic is flooded from `h2` towards `h3`.
 2. **Statistics Collection:** The Ryu controller (`simple_monitor.py`) queries the OVS switch (`s1`) for flow statistics every 1.5 seconds.
-3. **Detection:** Ryu uses an inference loader to classify traffic. Currently, it defaults to a threshold mechanism (if Packets Per Second > 10,000, it marks the flow as a DDoS attack).
+3. **Detection:** Ryu classifies each observed IPv4 source/destination flow using the provided model when available, with a 10,000 packets/sec per-flow threshold fallback when it is not. The API only observes the OVS switch connection; it does not independently probe host reachability.
 4. **Mitigation & Visualization:** Upon detection, Ryu instructs `mitigation.py` to push a high-priority DROP rule to `s1`. Simultaneously, Ryu updates `shared_state.json`. Flask serves this updated state to the React dashboard, dynamically painting the UI red.
 
 ## Configuration
@@ -98,6 +94,8 @@ To configure the dashboard to point to your specific Ubuntu VM IP:
 | [API Schema](docs/API_SCHEMA.md) | Contract for the Flask REST API endpoints and data models. |
 | [Demo Script](docs/DEMO_SCRIPT.md) | Step-by-step guide to showcasing the project in a presentation. |
 
+`docs/BACKEND_PLAN.md`, `docs/TEAM_PLAN.md`, `docs/SDLC_PHASES.md`, and `docs/SRS.md` are planning/requirements records; some describe earlier designs. Use the running guide, architecture, and API schema above for current launch steps and runtime behavior.
+
 ## Team
 
 | Role | Responsibility |
@@ -108,7 +106,7 @@ To configure the dashboard to point to your specific Ubuntu VM IP:
 
 ## Current Status
 
-- **Implemented & Working:** Mininet network, Ryu controller, IPC state sharing, Flask API, React dashboard, automated mitigation rules.
-- **Pending:** The ML model (`detector.joblib`) is not yet fully trained. The controller currently uses a resilient threshold fallback (PPS > 10,000) for detection.
+- **Implemented:** Mininet topology, Ryu controller, IPC state sharing, Flask API, React dashboard, and OpenFlow mitigation rules. Confirm live operation on the VMware setup before presenting it as verified.
+- **Pending:** `ml_pipeline/detector.joblib` is not included. Ryu uses the 10,000 PPS per-flow fallback until a compatible model is supplied. Run the training notebook with `ml_pipeline/notebooks` as its working directory; it writes to the path Ryu loads.
 
-*Last Updated: 2026-10-09*
+*Last Updated: 2026-10-28*

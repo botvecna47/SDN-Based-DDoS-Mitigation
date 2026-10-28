@@ -31,7 +31,6 @@ class SimpleMonitor13(app_manager.RyuApp):
         self.datapaths = {}
         self.start_time = time.time()
         self.blocked_ips = set()
-        self.blocked_ips_timestamps = {} # src_ip -> timestamp when blocked
         self.flow_history = {} # dict of (datapath.id, src_ip, dst_ip) -> (prev_pkt, prev_byte, prev_time)
         
         # Initialize the shared state
@@ -54,10 +53,31 @@ class SimpleMonitor13(app_manager.RyuApp):
             if datapath.id not in self.datapaths:
                 self.logger.info('Registering datapath: %016x', datapath.id)
                 self.datapaths[datapath.id] = datapath
+                update_state(switch_connected=True, last_updated_at=time.time())
         elif ev.state == DEAD_DISPATCHER:
             if datapath.id in self.datapaths:
                 self.logger.info('Unregistering datapath: %016x', datapath.id)
                 del self.datapaths[datapath.id]
+                self.blocked_ips.clear()
+                update_state(
+                    switch_connected=bool(self.datapaths),
+                    blocked_ips=list(self.blocked_ips),
+                    status="NORMAL",
+                    current_pps=0,
+                    dropped_pps=0,
+                    active_flows=0,
+                    openflow_rules=[],
+                    last_updated_at=time.time(),
+                )
+
+    @set_ev_cls(ofp_event.EventOFPFlowRemoved, MAIN_DISPATCHER)
+    def _flow_removed_handler(self, ev):
+        """Keep the dashboard block list in sync with switch idle timeouts."""
+        src_ip = ev.msg.match['ipv4_src'] if 'ipv4_src' in ev.msg.match else None
+        if src_ip and src_ip in self.blocked_ips:
+            self.blocked_ips.discard(src_ip)
+            update_state(blocked_ips=list(self.blocked_ips), last_updated_at=time.time())
+            self.logger.info('DROP rule expired for %s; removed from block list.', src_ip)
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
@@ -173,31 +193,48 @@ class SimpleMonitor13(app_manager.RyuApp):
         current_time = time.time()
         controller_uptime_sec = current_time - self.start_time
 
-        # Clean up expired blocked IPs (matching OpenFlow idle_timeout=300s)
-        expired_ips = [ip for ip, btime in self.blocked_ips_timestamps.items() if current_time - btime > 300]
-        for ip in expired_ips:
-            self.logger.info(f"OpenFlow rule for {ip} reached idle_timeout (300s). Removing from blocklist.")
-            self.blocked_ips.discard(ip)
-            del self.blocked_ips_timestamps[ip]
-        
         total_pps = 0.0
+        dropped_pps = 0.0
         attack_detected_this_cycle = False
         latest_inference_ms = 3.1
+        openflow_rules = []
+
+        for stat in body:
+            priority = int(stat.priority)
+            match = {
+                key: stat.match[key]
+                for key in ('in_port', 'eth_src', 'eth_dst', 'ipv4_src', 'ipv4_dst')
+                if key in stat.match
+            }
+            if priority == 65535:
+                action, rule_status = 'DROP', 'BLOCKED'
+            elif priority == 0:
+                action, rule_status = 'SEND_TO_CONTROLLER', 'CONTROLLER'
+            else:
+                action, rule_status = 'FORWARD', 'ALLOWED'
+            openflow_rules.append({
+                'match': match,
+                'action': action,
+                'priority': priority,
+                'status': rule_status,
+                'packets': int(stat.packet_count),
+                'bytes': int(stat.byte_count),
+            })
         
         for stat in body:
             # We are only interested in IPv4 flows
-            if 'ipv4_src' not in stat.match or 'ipv4_dst' not in stat.match:
+            if 'ipv4_src' not in stat.match:
                 continue
                 
             src_ip = stat.match['ipv4_src']
-            dst_ip = stat.match['ipv4_dst']
+            dst_ip = stat.match['ipv4_dst'] if 'ipv4_dst' in stat.match else None
             
             packet_count = stat.packet_count
             byte_count = stat.byte_count
             duration_sec = stat.duration_sec
             
             # Key for flow history
-            flow_key = (datapath.id, src_ip, dst_ip)
+            flow_key = (datapath.id, src_ip, dst_ip or '*')
             
             pps = 0.0
             bps = 0.0
@@ -214,6 +251,15 @@ class SimpleMonitor13(app_manager.RyuApp):
                         bps = (byte_delta * 8) / time_delta
             
             total_pps += pps
+            if dst_ip is None:
+                # DROP rules match only source IP, so retain their rate and
+                # rebuild the block list if Ryu restarted while OVS stayed up.
+                if stat.priority == 65535:
+                    self.blocked_ips.add(src_ip)
+                if src_ip in self.blocked_ips:
+                    dropped_pps += pps
+                self.flow_history[flow_key] = (packet_count, byte_count, current_time)
+                continue
             
             # Store history
             self.flow_history[flow_key] = (packet_count, byte_count, current_time)
@@ -252,7 +298,12 @@ class SimpleMonitor13(app_manager.RyuApp):
             current_pps=total_pps,
             active_flows=len(body),
             status=current_status,
-            inference_latency_ms=latest_inference_ms
+            inference_latency_ms=latest_inference_ms,
+            dropped_pps=dropped_pps,
+            detection_mode="machine_learning" if self.detector.is_loaded else "threshold_fallback",
+            switch_connected=True,
+            last_updated_at=current_time,
+            openflow_rules=openflow_rules,
         )
 
     def _log_to_csv(self, stats_dict):
@@ -285,7 +336,6 @@ class SimpleMonitor13(app_manager.RyuApp):
             self.logger.warning(f"DDoS Detected from {src_ip}! Pushing drop rule...")
             push_drop_rule(datapath, src_ip)
             self.blocked_ips.add(src_ip)
-            self.blocked_ips_timestamps[src_ip] = time.time()
             # Immediately write UNDER_ATTACK status so Flask picks it up on next poll
             # without waiting for the next 1.5s flow stats cycle
             update_state(status="UNDER_ATTACK", blocked_ips=list(self.blocked_ips), inference_latency_ms=inference_ms)

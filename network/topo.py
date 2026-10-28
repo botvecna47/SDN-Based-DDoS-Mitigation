@@ -8,8 +8,7 @@ import os
 def create_network():
     setLogLevel('info')
     
-    # 🚨 CHANGE THIS IP to your Windows Host IP if running in a VM!
-    # If running everything on the same machine/WSL, 127.0.0.1 is fine.
+    # Ryu runs in the same Ubuntu VM by default. Override only if it runs elsewhere.
     CONTROLLER_IP = os.environ.get('CONTROLLER_IP', '127.0.0.1')
     
     info(f'*** Creating network, connecting to controller at {CONTROLLER_IP}\n')

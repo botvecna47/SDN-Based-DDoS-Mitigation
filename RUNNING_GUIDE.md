@@ -1,7 +1,7 @@
 # 🛡️ SDN DDoS Mitigation — Setup & Running Guide
 
-> **Last updated: 2026-09-30**
-> New Sentinel UI integrated, automatic MAC bootstrapping added, auto-recovery after attacks fixed.
+> **Last updated: 2026-10-28**
+> The root `src/` dashboard starts in Demo mode; switch to Live after the API and Mininet switch are reporting.
 > **Always `git pull` on Ubuntu before starting a session.**
 
 ---
@@ -55,7 +55,7 @@ Only do this once after cloning the repo. Skip this section on every subsequent 
 ```bash
 # 1. Install system dependencies
 sudo apt update
-sudo apt install -y mininet openvswitch-switch hping3 iperf git python3.9 python3.9-venv python3.9-distutils
+sudo apt install -y mininet openvswitch-switch hping3 iperf xterm git python3.9 python3.9-venv python3.9-distutils
 
 # 2. Clone the project
 git clone https://github.com/botvecna47/SDN-Based-DDoS-Mitigation.git
@@ -66,7 +66,7 @@ cd SDN-Based-DDoS-Mitigation
 python3.9 -m venv ryu39_env
 source ryu39_env/bin/activate
 
-# 4. Install exact package versions (these versions matter — newer ones break Ryu)
+# 4. Install the Ryu compatibility pins, then the application dependencies
 pip install setuptools==59.6.0 wheel==0.37.1
 pip install eventlet==0.30.2
 pip install ryu flask flask-cors pandas scikit-learn filelock joblib
@@ -199,10 +199,10 @@ npm run dev
 
 Open your browser at: **http://localhost:5173**
 
-**✅ The dashboard opens in Live mode automatically** (already connected to `http://192.168.8.147:5000`).
+**The dashboard opens in Demo mode** so it is presentation-ready before the VM is connected. Select **Live** after Flask and the Mininet switch are running. Set `VITE_DEFENSE_API_URL` in `.env` to your VM's reachable IP before starting Vite; restart Vite after changing `.env`.
 
 > [!TIP]
-> If the dashboard shows "We couldn't load telemetry" error, click **"View demo instead"** to verify the UI itself is working, then check that Flask is running on the Ubuntu VM and reachable from Windows.
+> If Live mode reports no recent switch statistics, verify Ryu registered the datapath and Mininet `pingall` succeeds. The dashboard reports telemetry as offline until fresh switch stats arrive.
 
 ---
 
@@ -217,8 +217,8 @@ mininet> h1 bash network/legit_traffic.sh &
 
 **What you see on dashboard:**
 - 🔵 Blue line rises to ~0.8k PPS on the chart
-- Health card: **"All systems secure"** (green)
-- Dropped traffic: **0.00 TB**
+- Health banner: **"Network Operating Normally"** (green)
+- Live rate and active flow rules update from switch counters; the API does not report a cumulative TB total.
 
 This is the legitimate user (h1) sending normal UDP traffic to the server (h3). The blue line is below the red threshold line — all traffic is being **allowed**.
 
@@ -234,7 +234,7 @@ A small black terminal opens. Inside it type:
 sudo hping3 --flood --udp -p 80 10.0.0.3
 ```
 
-**What you see on dashboard (within 3 seconds):**
+**What you see on dashboard (after Ryu receives flow statistics):**
 - 📈 Blue line spikes dramatically above the red threshold line
 - Health card changes to: **"Threat detected"** (dark/red)
 - Ryu prints (in Terminal 1): `DDoS Detected from 10.0.0.2! Pushing drop rule...`
@@ -245,8 +245,8 @@ sudo hping3 --flood --udp -p 80 10.0.0.3
 
 Without any manual command:
 - Ryu installs a **Priority 65535 DROP rule** for `10.0.0.2`
-- `10.0.0.2` appears in the **Blocked threats** table with reason: *"DDoS Signature Detected by ML"*
-- **Decision Intelligence** panel shows: ML Classification 72%, PPS Threshold 18%, OpenFlow Rule 10%
+- `10.0.0.2` appears in the **Blocked threats** table with the active detection mode shown by the API
+- The **Why Traffic Was Blocked** panel identifies the ML model or PPS fallback used for the detection
 - The teal "Dropped" line appears on the chart showing blocked traffic volume
 - h1's legitimate traffic **continues uninterrupted**
 
@@ -264,8 +264,8 @@ Press `Ctrl+C` inside the xterm h2 window.
 
 **What you see on dashboard:**
 - Blue line drops back to ~0.8k PPS baseline
-- Health card returns to: **"All systems secure"** (green)
-- `10.0.0.2` remains listed in the Blocked threats table (the DROP rule has a 5-min idle timeout — this is by design, showing persistent protection)
+- Health banner returns to normal when the observed traffic falls below the recovery threshold.
+- `10.0.0.2` remains listed in the Blocked threats table until OVS reports that the DROP rule expired after five minutes without matching traffic.
 
 ---
 
@@ -287,7 +287,9 @@ This returns:
 
 ```bash
 # 1. Stop attack (if running) — Ctrl+C in xterm h2
-# 2. Stop legit traffic — Ctrl+C at mininet> prompt
+# 2. Stop legitimate traffic and its current iperf client from the Mininet CLI
+mininet> h1 pkill -f '[l]egit_traffic.sh' || true
+mininet> h1 pkill -f '[i]perf -c 10.0.0.3' || true
 # 3. Exit Mininet
 mininet> exit
 
@@ -306,7 +308,7 @@ sudo mn -c
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | Mininet `pingall` shows 100% dropped | Ryu not running or wrong controller IP | Run `sudo mn -c`, restart Ryu first |
-| Dashboard shows "We couldn't load telemetry" | Flask not running or VM IP wrong | Check `python3 app.py` is running. API URL is hardcoded in `src/data.ts` as `http://192.168.8.147:5000` |
+| Dashboard cannot load telemetry | Flask not running or VM IP wrong | Check `python3 app.py` is running and set `VITE_DEFENSE_API_URL` in `.env`; restart Vite after changing it |
 | Chart stays flat at 0 PPS | MAC learning not bootstrapped | `pingall` now runs automatically on startup — if still 0, restart from Step ① |
 | `ryu-manager: command not found` | Virtualenv not active | `source ryu39_env/bin/activate` |
 | `ModuleNotFoundError: ryu` | Wrong Python version or wrong venv | Must use Python 3.9 venv: `python3.9 -m venv ryu39_env` |
@@ -314,9 +316,9 @@ sudo mn -c
 | `ImportError: cannot import ALREADY_HANDLED` | eventlet version too new | `pip install eventlet==0.30.2` |
 | `ModuleNotFoundError: filelock` | Missing dependency | `pip install filelock` inside activated venv |
 | `get_script_args` error on `pip install ryu` | setuptools too new | `pip install setuptools==59.6.0 wheel==0.37.1` first |
-| Attack not detected (no DROP rule) | PPS too low or ML threshold missed | `hping3 --flood` generates >20k PPS which is well above 10k threshold |
-| Status stuck on UNDER_ATTACK after attack stops | Old bug — now fixed | After `git pull`, the hysteresis threshold is 5000 PPS |
-| `xterm h2` window does not open | No display in VM | Use VMware with full Desktop install, not Server |
+| Attack not detected (no DROP rule) | Switch connection, traffic rate, or model result | Check Ryu registered the switch, inspect `ovs-ofctl dump-flows s1`, and confirm the attack source exceeds the 10,000 PPS fallback threshold |
+| Blocked row disappears unexpectedly | Switch flow removal event or controller restart | The controller now removes a blocked row when OVS reports rule removal; a controller restart clears its in-memory block list |
+| `xterm h2` window does not open | No display in VM | Use VMware with a desktop session, or launch the attack from Mininet with `h2 hping3 --flood --udp -p 80 10.0.0.3` |
 
 ---
 

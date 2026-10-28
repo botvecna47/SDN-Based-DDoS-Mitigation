@@ -1,4 +1,4 @@
-﻿# Software Requirements Specification
+# Software Requirements Specification
 ## SDN-Based DDoS Detection and Mitigation System
 
 ---
@@ -48,6 +48,9 @@ The system ingests per-flow network statistics from an OpenFlow-enabled virtual 
 - Flask Documentation — https://flask.palletsprojects.com
 
 ---
+
+> [!NOTE]
+> **Implementation Evolution**: In the production codebase, the backend and UI communicate via a single consolidated Snapshot endpoint (`GET /api/network-stats`) using native `fetch` and custom SVG components, rather than multiple polling endpoints with Axios and Recharts. Full operational schemas and architectures are maintained in `docs/ARCHITECTURE.md` and `docs/API_SCHEMA.md`.
 
 ## 2. System Overview
 

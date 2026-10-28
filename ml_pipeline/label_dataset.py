@@ -11,14 +11,15 @@ Usage:
 """
 
 import pandas as pd
-import os
-from datetime import datetime
+from datetime import datetime, timezone
+from pathlib import Path
 
-INPUT_CSV = '../controller/traffic_dataset.csv'
-OUTPUT_CSV = 'data/processed/labeled_dataset.csv'
+ML_PIPELINE_DIR = Path(__file__).resolve().parent
+INPUT_CSV = ML_PIPELINE_DIR.parent / 'controller' / 'traffic_dataset.csv'
+OUTPUT_CSV = ML_PIPELINE_DIR / 'data' / 'processed' / 'labeled_dataset.csv'
 
 def main():
-    if not os.path.exists(INPUT_CSV):
+    if not INPUT_CSV.exists():
         print(f"Error: Could not find input file {INPUT_CSV}")
         return
 
@@ -29,7 +30,14 @@ def main():
         print("Error: 'timestamp' column not found in dataset")
         return
         
-    df['timestamp'] = pd.to_datetime(df['timestamp'])
+    if pd.api.types.is_numeric_dtype(df['timestamp']):
+        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='s', utc=True, errors='coerce')
+    else:
+        df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True, errors='coerce')
+    df = df.dropna(subset=['timestamp'])
+    if df.empty:
+        print("Error: No valid timestamps were found in the traffic dataset")
+        return
     
     print(f"\nDataFrame Shape: {df.shape}")
     print("\nHead(5):")
@@ -42,24 +50,26 @@ def main():
     except ValueError:
         print("Invalid input for number of sessions. Must be an integer.")
         return
+    if num_sessions < 1:
+        print("Enter at least one attack session.")
+        return
 
     attack_windows = []
     
     for i in range(1, num_sessions + 1):
         try:
-            start_time_str = input(f"Attack session {i} start time (format: HH:MM:SS): ")
-            end_time_str = input(f"Attack session {i} end time (format: HH:MM:SS): ")
-            
-            start_time = datetime.strptime(start_time_str, "%H:%M:%S").time()
-            end_time = datetime.strptime(end_time_str, "%H:%M:%S").time()
-            
-            base_date = df['timestamp'].iloc[0].date()
-            start_dt = datetime.combine(base_date, start_time)
-            end_dt = datetime.combine(base_date, end_time)
+            start_time_str = input(f"Attack session {i} start time (UTC, YYYY-MM-DD HH:MM:SS): ")
+            end_time_str = input(f"Attack session {i} end time (UTC, YYYY-MM-DD HH:MM:SS): ")
+
+            start_dt = datetime.strptime(start_time_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+            end_dt = datetime.strptime(end_time_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+            if end_dt < start_dt:
+                print("Attack session end time must be at or after its start time.")
+                return
             
             attack_windows.append((start_dt, end_dt))
         except ValueError:
-            print("Invalid time format. Please use HH:MM:SS.")
+            print("Invalid time format. Please use YYYY-MM-DD HH:MM:SS in UTC.")
             return
 
     df['label'] = 0
@@ -82,7 +92,7 @@ def main():
             print("WARNING: Distribution check - Attack rows are < 10% or > 50% of total.")
             print("Dataset is imbalanced and may produce a bad model.")
             
-    os.makedirs(os.path.dirname(OUTPUT_CSV), exist_ok=True)
+    OUTPUT_CSV.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(OUTPUT_CSV, index=False)
     print(f"\nLabeled dataset saved to {OUTPUT_CSV}")
 

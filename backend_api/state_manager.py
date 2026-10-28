@@ -2,6 +2,8 @@ import json
 import os
 from filelock import FileLock
 
+FALLBACK_THRESHOLD_PPS = 10_000
+
 # ==============================================================================
 # 🚨 CRITICAL ARCHITECTURE FIX: RYU-FLASK BRIDGE 🚨
 # Ryu (Eventlet) and Flask (WSGI) thread-block each other if run in the same script.
@@ -20,8 +22,14 @@ def initialize_state():
         "normal_baseline_pps": 0,
         "active_flows": 0,
         "blocked_count": 0,
+        "blocked_ips": [],
+        "dropped_pps": 0,
+        "detection_mode": "threshold_fallback",
+        "fallback_threshold_pps": FALLBACK_THRESHOLD_PPS,
+        "switch_connected": False,
+        "last_updated_at": 0,
+        "openflow_rules": [],
         "timestamp": "",
-        "blocked_ips": []
     }
     with FileLock(LOCK_FILE):
         with open(STATE_FILE, 'w') as f:

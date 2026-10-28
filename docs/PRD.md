@@ -1,4 +1,4 @@
-﻿# Product Requirements Document
+# Product Requirements Document
 ## SDN-Based DDoS Detection and Mitigation System
 
 ---
@@ -28,6 +28,9 @@ We need a **smart traffic cop** that lives in the network itself. This system mu
 ---
 
 ## 2. Solution Overview
+
+> [!NOTE]
+> **Implementation Evolution**: During implementation, the data contract between Flask and React was streamlined from two separate endpoints into a single, atomic Snapshot endpoint (`GET /api/network-stats`) that delivers live PPS, active rules, SVG sliding traffic history, and blocked device records in a single payload. Refer to `docs/ARCHITECTURE.md` and `docs/API_SCHEMA.md` for the finalized production specification.
 
 The system is built as a 5-layer stack, each layer with a well-defined responsibility:
 

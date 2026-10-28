@@ -1,10 +1,10 @@
-from flask import Flask, jsonify, request, make_response
+from flask import Flask, jsonify, make_response
 from flask_cors import CORS
 from datetime import datetime
 import os
 import time
 import collections
-from state_manager import read_state, initialize_state
+from state_manager import FALLBACK_THRESHOLD_PPS, read_state, initialize_state
 
 app = Flask(__name__)
 CORS(app, origins="*")   # Allow all origins for local demo
@@ -39,9 +39,16 @@ def network_stats():
         status = state.get("status", "NORMAL")
         blocked_ips = state.get("blocked_ips", [])
         active_flows = max(0, int(state.get("active_flows", 0)))
+        last_updated_at = float(state.get("last_updated_at", 0) or 0)
+        switch_connected = bool(state.get("switch_connected", False)) and time.time() - last_updated_at <= 5
+        if not switch_connected:
+            current_pps = 0.0
+            active_flows = 0
 
-        # Estimate dropped traffic (if mitigating, we drop ~95% of attack volume)
-        mitigated_pps = current_pps * 0.95 if status == "UNDER_ATTACK" else 0.0
+        fallback_threshold_pps = max(1, int(state.get("fallback_threshold_pps", FALLBACK_THRESHOLD_PPS)))
+
+        # Ryu calculates this from the switch's source-IP DROP flow counters.
+        mitigated_pps = max(0.0, float(state.get("dropped_pps", 0))) if switch_connected else 0.0
         
         # We only want to append to the chart history once per second max,
         # otherwise fast API polling will artificially squash the chart time window.
@@ -53,7 +60,7 @@ def network_stats():
 
         # Convert simple list of blocked IPs into the structured Threat object the UI expects
         threats = []
-        for i, blocked in enumerate(blocked_ips):
+        for blocked in blocked_ips:
             ip_val = blocked if isinstance(blocked, str) else blocked.get("ip", "Unknown")
             # Map known Mininet IPs to host labels
             host_label = "h2 (Attacker Host)" if ip_val == "10.0.0.2" else ("h1 (Legitimate User)" if ip_val == "10.0.0.1" else ("h3 (Target Server)" if ip_val == "10.0.0.3" else "Mininet Host"))
@@ -62,38 +69,31 @@ def network_stats():
                 "country": host_label,
                 "port": 80,
                 "protocol": "UDP",
-                "reason": "DDoS Volumetric Spike (ML & Threshold)" if status == "UNDER_ATTACK" else "Flow Anomaly Rule Active",
-                "score": max(85, 98 - i),
-                "severity": "Critical",
-                "time": "Active"
+                "reason": "DDoS detected by ML model" if state.get("detection_mode") == "machine_learning" else "DDoS detected by PPS threshold fallback",
+                "severity": "Critical"
             })
 
-        # Calculate TB metrics (kept for backward compatibility)
-        ingress_tb = sum(history_ingress) / 1000.0
-        dropped_tb = sum(history_dropped) / 1000.0
-
         snapshot = {
-            "health": "degraded" if status == "UNDER_ATTACK" else "operational",
-            "endpointsOnline": 4, # h1, h2, h3, s1
-            "endpointsTotal": 4,
+            "health": "offline" if not switch_connected else ("degraded" if status == "UNDER_ATTACK" else "operational"),
+            "detectionMode": state.get("detection_mode", "threshold_fallback"),
+            # Only the OpenFlow switch connection is observed directly here;
+            # host reachability is not verified by the controller.
+            "endpointsOnline": 1 if switch_connected else 0,
+            "endpointsTotal": 1,
             "metrics": {
                 "currentPps": int(current_pps),
                 "uptimeSec": int(state.get("controller_uptime_sec", 0)),
-                "ingressTb": float(max(0.01, ingress_tb)), 
-                "droppedTb": float(dropped_tb), 
-                "activeRules": int(max(active_flows, len(threats) + 1)), 
+                "activeRules": active_flows if switch_connected else 0,
                 "mlLatencyMs": float(state.get("inference_latency_ms", 3.1))
             },
             "traffic": {
                 "ingress": list(history_ingress),
                 "dropped": list(history_dropped),
-                "threshold": 8 # 8k PPS threshold
+                "threshold": fallback_threshold_pps / 1000.0 # PPS shown in thousands
             },
             "threats": threats,
             "dropReasons": [
-                {"reason": "ML DDoS Classification", "share": 72},
-                {"reason": "PPS Threshold Breach", "share": 18},
-                {"reason": "OpenFlow DROP Rule", "share": 10},
+                {"reason": "ML classifier" if state.get("detection_mode") == "machine_learning" else "PPS threshold fallback", "share": 100},
             ] if threats else []
         }
         
@@ -115,39 +115,18 @@ def flow_table():
     """
     try:
         state = read_state()
-        blocked_ips = state.get("blocked_ips", [])
-        blocked_set = set(b if isinstance(b, str) else b.get("ip", "") for b in blocked_ips)
-        blocked_ip_list = [b if isinstance(b, str) else b.get("ip", "") for b in blocked_ips]
-        
+        last_updated_at = float(state.get("last_updated_at", 0) or 0)
+        connected = bool(state.get("switch_connected", False)) and time.time() - last_updated_at <= 5
+        rules = state.get("openflow_rules", []) if connected else []
         flow_table = {
             "summary": {
-                "description": "OpenFlow 1.3 flow rules currently installed on OVS Switch s1",
-                "allowed_flows": [
-                    {
-                        "match": "h1 (10.0.0.1) to h3 (10.0.0.3)",
-                        "action": "FORWARD",
-                        "priority": 1,
-                        "reason": "Legitimate user traffic - iperf UDP below threshold",
-                        "status": "ALLOWED"
-                    }
-                ] if "10.0.0.1" not in blocked_set else [],
-                "blocked_flows": [
-                    {
-                        "match": f"src={ip} to any",
-                        "action": "DROP",
-                        "priority": 65535,
-                        "reason": "DDoS detected - ML classifier + PPS threshold exceeded",
-                        "status": "BLOCKED"
-                    }
-                    for ip in blocked_ip_list
-                ],
-                "table_miss": {
-                    "match": "*",
-                    "action": "SEND_TO_CONTROLLER",
-                    "priority": 0,
-                    "reason": "Unknown flows sent to Ryu for MAC learning decision",
-                    "status": "CONTROLLER"
-                }
+                "description": "Latest OpenFlow 1.3 flow-stat snapshot reported by OVS Switch s1",
+                "connected": connected,
+                "snapshotAgeSeconds": max(0.0, time.time() - last_updated_at) if last_updated_at else None,
+                "allowed_flows": [rule for rule in rules if rule.get("status") == "ALLOWED"],
+                "blocked_flows": [rule for rule in rules if rule.get("status") == "BLOCKED"],
+                "table_miss": next((rule for rule in rules if rule.get("status") == "CONTROLLER"), None),
+                "other_flows": [rule for rule in rules if rule.get("status") not in ("ALLOWED", "BLOCKED", "CONTROLLER")],
             }
         }
         response = make_response(jsonify(flow_table))

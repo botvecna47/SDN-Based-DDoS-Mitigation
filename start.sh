@@ -1,52 +1,50 @@
-﻿#!/bin/bash
-# ==============================================================================
-# Helper Script: SDN DDoS Mitigation Project Bootstrapper
-# Note: This is a convenience script. Individual components can be run manually.
-# ==============================================================================
+#!/usr/bin/env bash
+set -euo pipefail
 
-echo "========================================="
-echo "   SDN DDoS Project Bootstrapper         "
-echo "========================================="
+PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+cd "$PROJECT_ROOT"
 
-echo "1) Start Mininet Topology (Requires sudo)"
-echo "2) Start Ryu Controller"
-echo "3) Start Flask API"
-echo "4) Start React Dashboard"
+echo "SDN DDoS project launcher"
+echo "Start Ryu first, then Flask, then Mininet."
+echo "1) Start Ryu controller (start first)"
+echo "2) Start Flask API"
+echo "3) Start Mininet topology (after Ryu; requires sudo)"
+echo "4) Start React dashboard on this machine (use npm run dev on Windows for the VMware setup)"
 echo "5) Exit"
-echo ""
-read -p "Select a component to run: " choice
+read -r -p "Select a component: " choice
 
-case $choice in
+activate_backend_venv() {
+    local activate_script="$PROJECT_ROOT/ryu39_env/bin/activate"
+    if [[ ! -f "$activate_script" ]]; then
+        echo "Missing ryu39_env. Follow RUNNING_GUIDE.md to create the Python 3.9 environment." >&2
+        exit 1
+    fi
+    # shellcheck disable=SC1091
+    source "$activate_script"
+}
+
+case "$choice" in
     1)
-        echo "Starting Mininet Topology..."
-        if [ -f "network/topo.py" ]; then
-            sudo python3 network/topo.py
-        else
-            echo "Error: network/topo.py not found."
-        fi
+        activate_backend_venv
+        exec ryu-manager controller/simple_monitor.py
         ;;
     2)
-        echo "Starting Ryu Controller..."
-        if [ -d "ryu-env" ]; then
-            source ryu-env/bin/activate
-        fi
-        ryu-manager controller/simple_monitor.py
+        activate_backend_venv
+        cd "$PROJECT_ROOT/backend_api"
+        exec python3 app.py
         ;;
     3)
-        echo "Starting Flask API..."
-        if [ -d "ryu-env" ]; then
-            source ryu-env/bin/activate
-        fi
-        cd backend_api && python3 app.py
+        sudo mn -c
+        exec sudo python3 "$PROJECT_ROOT/network/topo.py"
         ;;
     4)
-        echo "Starting React Dashboard..."
-        cd dashboard && npm run dev
+        exec npm run dev
         ;;
     5)
         exit 0
         ;;
     *)
-        echo "Invalid choice."
+        echo "Invalid choice." >&2
+        exit 2
         ;;
 esac

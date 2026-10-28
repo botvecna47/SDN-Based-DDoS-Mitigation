@@ -22,18 +22,19 @@ Returns the full `Snapshot` object representing the immediate state of the netwo
 ```json
 {
   "health": "operational", 
-  "endpointsOnline": 4,
-  "endpointsTotal": 4,
+  "detectionMode": "threshold_fallback",
+  "endpointsOnline": 1,
+  "endpointsTotal": 1,
   "metrics": {
-    "ingressTb": 0.03,
-    "droppedTb": 0.0,
+    "currentPps": 850,
+    "uptimeSec": 120,
     "activeRules": 3,
     "mlLatencyMs": 3.1
   },
   "traffic": {
     "ingress": [0.0, 0.0, 0.8, 0.7, 0.9],
-    "dropped": [0.0, 0.0, 0.0],
-    "threshold": 8
+    "dropped": [0.0, 0.0, 0.0, 0.0, 0.0],
+    "threshold": 10
   },
   "threats": [
     {
@@ -41,22 +42,20 @@ Returns the full `Snapshot` object representing the immediate state of the netwo
       "country": "Local Mininet",
       "port": 80,
       "protocol": "UDP",
-      "reason": "DDoS Signature Detected by ML",
-      "score": 98,
-      "severity": "Critical",
-      "time": "Just now"
+      "reason": "DDoS detected by PPS threshold fallback",
+      "severity": "Critical"
     }
   ],
   "dropReasons": [
-    {"reason": "ML DDoS Classification", "share": 72},
-    {"reason": "PPS Threshold Breach", "share": 18},
-    {"reason": "OpenFlow DROP Rule", "share": 10}
+    {"reason": "PPS threshold fallback", "share": 100}
   ]
 }
 ```
-*   `health`: `"operational"` or `"degraded"`.
-*   `traffic.ingress[]` and `dropped[]`: Arrays of PPS values in thousands.
-*   `traffic.threshold`: The trigger point (e.g., 8 = 8,000 PPS).
+*   `health`: `"operational"`, `"degraded"`, or `"offline"` when the switch has stopped sending fresh statistics.
+*   `endpointsOnline` and `endpointsTotal`: These count the switch telemetry link (0/1); they do not verify each Mininet host's reachability.
+*   `detectionMode`: `"machine_learning"` when the model is loaded, otherwise `"threshold_fallback"`; demo snapshots use `"simulation"`.
+*   `traffic.ingress[]` and `dropped[]`: Arrays of PPS values in thousands; dropped values come from OVS DROP-flow counters.
+*   `traffic.threshold`: The per-flow fallback trigger point, in thousands of packets per second. The dashboard obtains this value from the shared controller configuration through the API.
 *   `threats[]`: Structured objects if blocked IPs exist; empty otherwise.
 *   `dropReasons[]`: Populated during attacks; empty normally.
 
@@ -68,32 +67,38 @@ Fetches a snapshot of OpenFlow rules currently installed on the switch.
 ```json
 {
   "summary": {
-    "description": "OpenFlow 1.3 flow rules currently installed on OVS Switch s1",
+    "description": "Latest OpenFlow 1.3 flow-stat snapshot reported by OVS Switch s1",
+    "connected": true,
+    "snapshotAgeSeconds": 0.4,
     "allowed_flows": [
       {
-        "match": "h1 (10.0.0.1) to h3 (10.0.0.3)",
+        "match": {"ipv4_src": "10.0.0.1", "ipv4_dst": "10.0.0.3"},
         "action": "FORWARD",
         "priority": 1,
-        "reason": "Legitimate user traffic",
+        "packets": 1200,
+        "bytes": 84000,
         "status": "ALLOWED"
       }
     ],
     "blocked_flows": [
       {
-        "match": "src=10.0.0.2 to any",
+        "match": {"ipv4_src": "10.0.0.2"},
         "action": "DROP",
         "priority": 65535,
-        "reason": "DDoS detected",
+        "packets": 85000,
+        "bytes": 5100000,
         "status": "BLOCKED"
       }
     ],
     "table_miss": {
-      "match": "*",
+      "match": {},
       "action": "SEND_TO_CONTROLLER",
       "priority": 0,
-      "reason": "Unknown flows sent to Ryu for MAC learning",
+      "packets": 0,
+      "bytes": 0,
       "status": "CONTROLLER"
-    }
+    },
+    "other_flows": []
   }
 }
 ```
@@ -123,10 +128,7 @@ export async function fetchSnapshot(url: string): Promise<Snapshot> {
 ```
 
 ## 7. `parseSnapshot()` Validation Rules
-The UI rigorously checks runtime typing:
-- Ensures `health` is strictly `"operational"` or `"degraded"`.
-- Validates arrays (`traffic.ingress`, `threats`) and assigns fallbacks.
-- Drops invalid payloads to prevent UI crashes.
+The UI checks health and detection-mode enums, non-negative numeric metrics, equal-length ingress/drop arrays, threshold value, and threat/drop-reason fields. Invalid payloads are rejected and shown as a connection/contract error.
 
 ## 8. Configuration
 To override the default endpoint in local development, create a `.env` file at the root of the React project:
@@ -134,4 +136,4 @@ To override the default endpoint in local development, create a `.env` file at t
 VITE_DEFENSE_API_URL=http://192.168.8.147:5000/api/network-stats
 ```
 
-*Last Updated: 2026-10-09*
+*Last Updated: 2026-10-28*

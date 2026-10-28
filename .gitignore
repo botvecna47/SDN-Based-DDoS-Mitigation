@@ -11,6 +11,18 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
+.env.*
+!.env.example
+__pycache__/
+*.py[cod]
+ryu39_env/
+ryu-env/
+backend_api/shared_state.json
+backend_api/shared_state.json.lock
+controller/traffic_dataset.csv
+ml_pipeline/detector.joblib
+ml_pipeline/data/processed/labeled_dataset.csv
 
 # Editor directories and files
 .vscode/*

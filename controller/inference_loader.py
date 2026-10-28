@@ -1,6 +1,16 @@
-﻿import os
+import os
+import sys
 import time
 import logging
+
+try:
+    from state_manager import FALLBACK_THRESHOLD_PPS
+except ImportError:
+    try:
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend_api'))
+        from state_manager import FALLBACK_THRESHOLD_PPS
+    except ImportError:
+        FALLBACK_THRESHOLD_PPS = 10000
 
 try:
     import joblib
@@ -9,7 +19,7 @@ except ImportError:
     JOBLIB_AVAILABLE = False
 
 # PPS threshold used as fallback when detector.joblib is not yet trained (Phase 1 & 2)
-THRESHOLD_FALLBACK = 10000
+THRESHOLD_FALLBACK = FALLBACK_THRESHOLD_PPS
 
 def load_model(model_path):
     """
