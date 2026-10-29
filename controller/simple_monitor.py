@@ -27,7 +27,13 @@ class SimpleMonitor13(app_manager.RyuApp):
 
     def __init__(self, *args, **kwargs):
         super(SimpleMonitor13, self).__init__(*args, **kwargs)
-        self.mac_to_port = {}
+        self.mac_to_port = {
+            1: {
+                '00:00:00:00:00:01': 1,
+                '00:00:00:00:00:02': 2,
+                '00:00:00:00:00:03': 3,
+            }
+        }
         self.datapaths = {}
         self.start_time = time.time()
         self.blocked_ips = set()
@@ -53,6 +59,7 @@ class SimpleMonitor13(app_manager.RyuApp):
             if datapath.id not in self.datapaths:
                 self.logger.info('Registering datapath: %016x', datapath.id)
                 self.datapaths[datapath.id] = datapath
+                self._clear_switch_flows(datapath)
                 update_state(switch_connected=True, last_updated_at=time.time())
         elif ev.state == DEAD_DISPATCHER:
             if datapath.id in self.datapaths:
@@ -79,17 +86,28 @@ class SimpleMonitor13(app_manager.RyuApp):
             update_state(blocked_ips=list(self.blocked_ips), last_updated_at=time.time())
             self.logger.info('DROP rule expired for %s; removed from block list.', src_ip)
 
-    @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
-    def switch_features_handler(self, ev):
-        """Install a table-miss flow entry: priority=0, match=everything, action=CONTROLLER"""
-        datapath = ev.msg.datapath
+    def _clear_switch_flows(self, datapath):
+        """Purge any stale forwarding rules from previous runs so switch state is clean."""
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
-
+        del_mod = parser.OFPFlowMod(
+            datapath=datapath,
+            command=ofproto.OFPFC_DELETE,
+            out_port=ofproto.OFPP_ANY,
+            out_group=ofproto.OFPG_ANY,
+            match=parser.OFPMatch()
+        )
+        datapath.send_msg(del_mod)
         match = parser.OFPMatch()
         actions = [parser.OFPActionOutput(ofproto.OFPP_CONTROLLER,
                                           ofproto.OFPCML_NO_BUFFER)]
         self.add_flow(datapath, 0, match, actions)
+
+    @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
+    def switch_features_handler(self, ev):
+        """Install a table-miss flow entry: priority=0, match=everything, action=CONTROLLER"""
+        datapath = ev.msg.datapath
+        self._clear_switch_flows(datapath)
 
     def add_flow(self, datapath, priority, match, actions, buffer_id=None):
         """Helper method to add a flow entry to the switch"""
@@ -152,12 +170,13 @@ class SimpleMonitor13(app_manager.RyuApp):
                 # verify if we have a valid buffer_id, if yes avoid to send both
                 # flow_mod & packet_out
                 if msg.buffer_id != ofproto.OFP_NO_BUFFER:
-                    self.add_flow(datapath, 1, match, actions, msg.buffer_id)
+                    self.add_flow(datapath, 10, match, actions, msg.buffer_id)
                     return
                 else:
-                    self.add_flow(datapath, 1, match, actions)
+                    self.add_flow(datapath, 10, match, actions)
             else:
-                match = parser.OFPMatch(in_port=in_port, eth_dst=dst, eth_src=src)
+                match = parser.OFPMatch(in_port=in_port, eth_type=eth.ethertype,
+                                        eth_dst=dst, eth_src=src)
                 self.add_flow(datapath, 1, match, actions)
                 
         data = None
@@ -203,7 +222,7 @@ class SimpleMonitor13(app_manager.RyuApp):
             priority = int(stat.priority)
             match = {
                 key: stat.match[key]
-                for key in ('in_port', 'eth_src', 'eth_dst', 'ipv4_src', 'ipv4_dst')
+                for key in ('in_port', 'eth_src', 'eth_dst', 'ipv4_src', 'ipv4_dst', 'eth_type')
                 if key in stat.match
             }
             if priority == 65535:
