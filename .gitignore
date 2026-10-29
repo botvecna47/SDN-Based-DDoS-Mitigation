@@ -39,6 +39,7 @@ ml_pipeline/data/processed/labeled_dataset.csv
 .idea
 .DS_Store
 Thumbs.db
+~$*
 *.suo
 *.ntvs*
 *.njsproj

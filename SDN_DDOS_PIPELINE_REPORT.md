@@ -102,6 +102,8 @@ flowchart TD
 
 Evaluated on 62,237 unseen test flows. Latency measured over 500 single-packet prediction iterations:
 
+> **High-Resolution Matrix Graphic:** [`visualizations/testing_evaluation_matrix.png`](file:///g:/Tejas/Project/SDN-Based%20DDoS%20Detection%20&%20Mitigation/visualizations/testing_evaluation_matrix.png)
+
 | Model | Accuracy | Precision | Recall | Macro F1 | Weighted F1 | False Positive Rate (FPR) | Latency (ms/packet) | SDN SLA Status |
 |---|---|---|---|---|---|---|---|---|
 | **Decision Tree (Selected Best)** | **99.99%** | **99.99%** | **99.99%** | **99.99%** | **99.99%** | **0.02%** | **0.142 ms** | **PASSED (< 5ms)** |
@@ -122,6 +124,8 @@ Models were tested against an attack category (`NTP`) completely excluded during
 
 Evaluated 145,207 training samples vs. 62,237 unseen test samples:
 
+> **High-Resolution Matrix Graphic:** [`visualizations/overfitting_diagnostic_matrix.png`](file:///g:/Tejas/Project/SDN-Based%20DDoS%20Detection%20&%20Mitigation/visualizations/overfitting_diagnostic_matrix.png)
+
 | Model | Train Accuracy | Unseen Test Accuracy | Accuracy Delta ($\text{Train} - \text{Test}$) | Train F1 | Unseen Test F1 | F1 Delta ($\text{Train} - \text{Test}$) | Overfitting Status |
 |---|---|---|---|---|---|---|---|
 | **Decision Tree** | 99.992% | **99.990%** | $+0.0016\%$ | 99.995% | **99.993%** | $+0.0011\%$ | **Optimal Fit (No Overfitting)** |
@@ -134,12 +138,14 @@ Evaluated 145,207 training samples vs. 62,237 unseen test samples:
 
 #### 4. Visualizations (Exported as `.png` at 300 DPI)
 All graphics are rendered and stored in [`visualizations/`](file:///g:/Tejas/Project/SDN-Based%20DDoS%20Detection%20&%20Mitigation/visualizations):
-1. **[`confusion_matrices_all_models.png`](file:///g:/Tejas/Project/SDN-Based%20DDoS%20Detection%20&%20Mitigation/visualizations/confusion_matrices_all_models.png):** Multi-panel $2 \times 3$ grid displaying annotated confusion matrices for all 5 models.
-2. **[`confusion_matrices_per_attack.png`](file:///g:/Tejas/Project/SDN-Based%20DDoS%20Detection%20&%20Mitigation/visualizations/confusion_matrices_per_attack.png):** High-resolution per-attack classification breakdown for each of the 11 attack categories.
-3. **[`combined_roc_pr_curves.png`](file:///g:/Tejas/Project/SDN-Based%20DDoS%20Detection%20&%20Mitigation/visualizations/combined_roc_pr_curves.png):** Side-by-side ROC-AUC curves and Precision-Recall (PR) curves comparing all models.
-4. **[`accuracy_vs_latency.png`](file:///g:/Tejas/Project/SDN-Based%20DDoS%20Detection%20&%20Mitigation/visualizations/accuracy_vs_latency.png):** Dual-axis bar chart directly comparing Detection Accuracy (%) on the primary axis vs. Prediction Latency (ms/packet) on the secondary axis.
-5. **[`overfitting_train_vs_test.png`](file:///g:/Tejas/Project/SDN-Based%20DDoS%20Detection%20&%20Mitigation/visualizations/overfitting_train_vs_test.png):** Diagnostic bar charts demonstrating the near-zero train-vs-test generalization gap.
-6. **[`tree_rules.png`](file:///g:/Tejas/Project/SDN-Based%20DDoS%20Detection%20&%20Mitigation/visualizations/tree_rules.png):** Decision Tree rule branching diagram.
+1. **[`testing_evaluation_matrix.png`](file:///g:/Tejas/Project/SDN-Based%20DDoS%20Detection%20&%20Mitigation/visualizations/testing_evaluation_matrix.png):** High-resolution publication table graphic of the comprehensive testing evaluation matrix.
+2. **[`overfitting_diagnostic_matrix.png`](file:///g:/Tejas/Project/SDN-Based%20DDoS%20Detection%20&%20Mitigation/visualizations/overfitting_diagnostic_matrix.png):** High-resolution publication table graphic of the overfitting & generalization diagnostic matrix.
+3. **[`confusion_matrices_all_models.png`](file:///g:/Tejas/Project/SDN-Based%20DDoS%20Detection%20&%20Mitigation/visualizations/confusion_matrices_all_models.png):** Multi-panel $2 \times 3$ grid displaying annotated confusion matrices for all 5 models.
+4. **[`confusion_matrices_per_attack.png`](file:///g:/Tejas/Project/SDN-Based%20DDoS%20Detection%20&%20Mitigation/visualizations/confusion_matrices_per_attack.png):** High-resolution per-attack classification breakdown for each of the 11 attack categories.
+5. **[`combined_roc_pr_curves.png`](file:///g:/Tejas/Project/SDN-Based%20DDoS%20Detection%20&%20Mitigation/visualizations/combined_roc_pr_curves.png):** Side-by-side ROC-AUC curves and Precision-Recall (PR) curves comparing all models.
+6. **[`accuracy_vs_latency.png`](file:///g:/Tejas/Project/SDN-Based%20DDoS%20Detection%20&%20Mitigation/visualizations/accuracy_vs_latency.png):** Dual-axis bar chart directly comparing Detection Accuracy (%) on the primary axis vs. Prediction Latency (ms/packet) on the secondary axis.
+7. **[`overfitting_train_vs_test.png`](file:///g:/Tejas/Project/SDN-Based%20DDoS%20Detection%20&%20Mitigation/visualizations/overfitting_train_vs_test.png):** Diagnostic bar charts demonstrating the near-zero train-vs-test generalization gap.
+8. **[`tree_rules.png`](file:///g:/Tejas/Project/SDN-Based%20DDoS%20Detection%20&%20Mitigation/visualizations/tree_rules.png):** Decision Tree rule branching diagram.
 
 ---
 

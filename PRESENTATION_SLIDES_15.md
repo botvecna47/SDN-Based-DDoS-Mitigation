@@ -124,6 +124,7 @@
 ---
 
 ## Slide 9: Comprehensive Model Evaluation Matrix (Phase 4)
+- **Visual Artifact:** Embedded [`testing_evaluation_matrix.png`](file:///g:/Tejas/Project/SDN-Based%20DDoS%20Detection%20&%20Mitigation/visualizations/testing_evaluation_matrix.png)
 - **Testing Performance Matrix (62,237 Unseen Test Flows):**
 
 | Model | Accuracy | Precision | Recall | Macro F1 | Weighted F1 | False Positive Rate (FPR) | Latency (ms/packet) | SDN SLA Status |
@@ -169,7 +170,7 @@
 ---
 
 ## Slide 13: Overfitting & Generalization Test (Validation)
-- **Visual Artifact:** Embedded [`overfitting_train_vs_test.png`](file:///g:/Tejas/Project/SDN-Based%20DDoS%20Detection%20&%20Mitigation/visualizations/overfitting_train_vs_test.png)
+- **Visual Artifacts:** Embedded [`overfitting_diagnostic_matrix.png`](file:///g:/Tejas/Project/SDN-Based%20DDoS%20Detection%20&%20Mitigation/visualizations/overfitting_diagnostic_matrix.png) and [`overfitting_train_vs_test.png`](file:///g:/Tejas/Project/SDN-Based%20DDoS%20Detection%20&%20Mitigation/visualizations/overfitting_train_vs_test.png)
 - **Overfitting Analysis Matrix (145k Train vs. 62k Test Flows):**
 
 | Model | Train Accuracy | Unseen Test Accuracy | Accuracy Delta ($\text{Train} - \text{Test}$) | Train F1 | Unseen Test F1 | F1 Delta ($\text{Train} - \text{Test}$) | Overfitting Status |
@@ -222,3 +223,4 @@
   - **Priority Override:** Priority 1000 overrides default forwarding for the offending flow match.
   - **Hard Timeout Expiry:** 60s hard timeout prevents stale flow table rule accumulation.
   - **Repository State:** All code and artifacts committed and pushed to `botvecna47/SDN-Based-DDoS-Mitigation` at branch `mlbranch`.
+
