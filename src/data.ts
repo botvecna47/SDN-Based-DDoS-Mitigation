@@ -6,6 +6,11 @@ export type Threat = {
   protocol: string
   reason: string
   severity: 'Critical' | 'High' | 'Medium'
+  mac?: string
+  target?: string
+  ratePps?: number
+  action?: string
+  status?: 'ACTIVE DROP' | 'RETAINED' | 'EXPIRED' | string
 }
 
 export type Snapshot = {
@@ -29,7 +34,7 @@ const envUrl = import.meta.env.VITE_DEFENSE_API_URL as string | undefined
 export const endpoint = envUrl || "http://192.168.8.147:5000/api/network-stats"
 
 // Baseline legitimate traffic in thousands of PPS (~0.7 to 0.9k PPS = 700-900 packets/sec)
-const baseIngress = [
+export const baseIngress = [
   0.72, 0.78, 0.81, 0.75, 0.84, 0.79, 0.82, 0.86, 0.80, 0.77, 
   0.83, 0.88, 0.82, 0.79, 0.85, 0.81, 0.84, 0.89, 0.83, 0.80,
   0.78, 0.85, 0.82, 0.87, 0.81, 0.79, 0.84, 0.88, 0.83, 0.81,
@@ -84,12 +89,17 @@ export function demoSnapshot(
         ip: '10.0.0.2',
         country: 'h2 (Attacker Host)',
         port: 80,
-        protocol: 'UDP',
-        reason: 'UDP Flood Attack (>20,000 pkts/s)',
-        severity: 'Critical'
+        protocol: 'UDP Flood',
+        reason: isAttackActive ? 'High-rate UDP Flood (>10,000 pkts/s)' : 'OpenFlow DROP Rule Retained (300s Idle Timeout)',
+        severity: 'Critical',
+        mac: '00:00:00:00:00:02',
+        target: '10.0.0.3:80 (h3 Server)',
+        ratePps: isAttackActive ? currentPps : 0,
+        action: 'DROP (Priority 65535)',
+        status: isAttackActive ? 'ACTIVE DROP' : 'RETAINED',
       }
     ] : [],
-    dropReasons: hasBlockedThreat ? [{ reason: 'Simulated DDoS detection', share: 100 }] : [],
+    dropReasons: hasBlockedThreat ? [{ reason: 'Simulated DDoS detection (Threshold >10k PPS)', share: 100 }] : [],
   }
 }
 
