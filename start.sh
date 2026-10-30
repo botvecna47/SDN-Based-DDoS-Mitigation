@@ -4,15 +4,6 @@ set -euo pipefail
 PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT_ROOT"
 
-echo "SDN DDoS project launcher"
-echo "Start Ryu first, then Flask, then Mininet."
-echo "1) Start Ryu controller (start first)"
-echo "2) Start Flask API"
-echo "3) Start Mininet topology (after Ryu; requires sudo)"
-echo "4) Start React dashboard on this machine (use npm run dev on Windows for the VMware setup)"
-echo "5) Exit"
-read -r -p "Select a component: " choice
-
 activate_backend_venv() {
     local activate_script="$PROJECT_ROOT/ryu39_env/bin/activate"
     if [[ ! -f "$activate_script" ]]; then
@@ -22,6 +13,16 @@ activate_backend_venv() {
     # shellcheck disable=SC1091
     source "$activate_script"
 }
+
+echo "SDN DDoS project launcher"
+echo "Start Ryu first, then Flask, then Mininet."
+echo "1) Start Ryu controller (start first)"
+echo "2) Start Flask API"
+echo "3) Start Mininet topology (after Ryu; requires sudo)"
+echo "4) Start React dashboard on this machine (use npm run dev on Windows for VMware setup)"
+echo "5) Train ML Random Forest model (ml_pipeline/train.py)"
+echo "6) Exit"
+read -r -p "Select a component: " choice
 
 case "$choice" in
     1)
@@ -41,6 +42,10 @@ case "$choice" in
         exec npm run dev
         ;;
     5)
+        activate_backend_venv
+        exec python3 "$PROJECT_ROOT/ml_pipeline/train.py"
+        ;;
+    6)
         exit 0
         ;;
     *)

@@ -38,16 +38,16 @@ class SimpleMonitor13(app_manager.RyuApp):
         self.start_time = time.time()
         self.blocked_ips = set()
         self.flow_history = {} # dict of (datapath.id, src_ip, dst_ip) -> (prev_pkt, prev_byte, prev_time)
-        
+
         # Initialize the shared state
         initialize_state()
-        
+
         # Load the ML Model
         model_path = os.path.join(os.path.dirname(__file__), '..', 'ml_pipeline', 'detector.joblib')
         self.detector = DDoSDetector(model_path)
-        
+
         self.csv_path = os.path.join(os.path.dirname(__file__), 'traffic_dataset.csv')
-        
+
         # Start the polling thread
         self.monitor_thread = hub.spawn(self._monitor)
 
@@ -162,23 +162,28 @@ class SimpleMonitor13(app_manager.RyuApp):
             # check IP Protocol and create a match for IP
             if eth.ethertype == ether_types.ETH_TYPE_IP:
                 ip = pkt.get_protocol(ipv4.ipv4)
-                srcip = ip.src
-                dstip = ip.dst
-                match = parser.OFPMatch(eth_type=ether_types.ETH_TYPE_IP,
-                                        ipv4_src=srcip, ipv4_dst=dstip)
-                
-                # verify if we have a valid buffer_id, if yes avoid to send both
-                # flow_mod & packet_out
-                if msg.buffer_id != ofproto.OFP_NO_BUFFER:
-                    self.add_flow(datapath, 10, match, actions, msg.buffer_id)
-                    return
+                if ip:
+                    srcip = ip.src
+                    dstip = ip.dst
+                    match = parser.OFPMatch(eth_type=ether_types.ETH_TYPE_IP,
+                                            ipv4_src=srcip, ipv4_dst=dstip)
+
+                    # verify if we have a valid buffer_id, if yes avoid to send both
+                    # flow_mod & packet_out
+                    if msg.buffer_id != ofproto.OFP_NO_BUFFER:
+                        self.add_flow(datapath, 10, match, actions, msg.buffer_id)
+                        return
+                    else:
+                        self.add_flow(datapath, 10, match, actions)
                 else:
-                    self.add_flow(datapath, 10, match, actions)
+                    match = parser.OFPMatch(in_port=in_port, eth_type=eth.ethertype,
+                                            eth_dst=dst, eth_src=src)
+                    self.add_flow(datapath, 1, match, actions)
             else:
                 match = parser.OFPMatch(in_port=in_port, eth_type=eth.ethertype,
                                         eth_dst=dst, eth_src=src)
                 self.add_flow(datapath, 1, match, actions)
-                
+
         data = None
         if msg.buffer_id == ofproto.OFP_NO_BUFFER:
             data = msg.data
@@ -208,7 +213,7 @@ class SimpleMonitor13(app_manager.RyuApp):
         """Process flow statistics from the switch, calculate rates, and run ML detection."""
         body = ev.msg.body
         datapath = ev.msg.datapath
-        
+
         current_time = time.time()
         controller_uptime_sec = current_time - self.start_time
 
@@ -239,25 +244,25 @@ class SimpleMonitor13(app_manager.RyuApp):
                 'packets': int(stat.packet_count),
                 'bytes': int(stat.byte_count),
             })
-        
+
         for stat in body:
             # We are only interested in IPv4 flows
             if 'ipv4_src' not in stat.match:
                 continue
-                
+
             src_ip = stat.match['ipv4_src']
             dst_ip = stat.match['ipv4_dst'] if 'ipv4_dst' in stat.match else None
-            
+
             packet_count = stat.packet_count
             byte_count = stat.byte_count
             duration_sec = stat.duration_sec
-            
+
             # Key for flow history
             flow_key = (datapath.id, src_ip, dst_ip or '*')
-            
+
             pps = 0.0
             bps = 0.0
-            
+
             if flow_key in self.flow_history:
                 prev_pkt, prev_byte, prev_time = self.flow_history[flow_key]
                 time_delta = current_time - prev_time
@@ -268,7 +273,7 @@ class SimpleMonitor13(app_manager.RyuApp):
                         pps = pkt_delta / time_delta
                     if byte_delta > 0:
                         bps = (byte_delta * 8) / time_delta
-            
+
             total_pps += pps
             if dst_ip is None:
                 # DROP rules match only source IP, so retain their rate and
@@ -279,10 +284,10 @@ class SimpleMonitor13(app_manager.RyuApp):
                     dropped_pps += pps
                 self.flow_history[flow_key] = (packet_count, byte_count, current_time)
                 continue
-            
+
             # Store history
             self.flow_history[flow_key] = (packet_count, byte_count, current_time)
-            
+
             stats_dict = {
                 'timestamp': current_time,
                 'src_ip': src_ip,
@@ -293,13 +298,13 @@ class SimpleMonitor13(app_manager.RyuApp):
                 'pps': pps,
                 'bps': bps
             }
-            
+
             self._log_to_csv(stats_dict)
             detected, inf_ms = self._run_inference(stats_dict, datapath)
             if detected:
                 attack_detected_this_cycle = True
             latest_inference_ms = inf_ms
-            
+
         # Auto-recover status if traffic drops
         # UNDER_ATTACK only if an attack was detected in this cycle OR
         # if blocked IPs exist and traffic is still above recovery threshold (5000 PPS).
@@ -328,14 +333,14 @@ class SimpleMonitor13(app_manager.RyuApp):
     def _log_to_csv(self, stats_dict):
         """Append flow stats to controller/traffic_dataset.csv"""
         file_exists = os.path.isfile(self.csv_path)
-        
+
         with open(self.csv_path, mode='a', newline='') as f:
             fieldnames = ['timestamp', 'src_ip', 'dst_ip', 'packet_count', 'byte_count', 'duration_sec', 'pps', 'bps']
             writer = csv.DictWriter(f, fieldnames=fieldnames)
-            
+
             if not file_exists:
                 writer.writeheader()
-                
+
             writer.writerow(stats_dict)
 
     def _run_inference(self, stats_dict, datapath):

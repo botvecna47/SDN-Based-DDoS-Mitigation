@@ -1,6 +1,6 @@
 from flask import Flask, jsonify, make_response
 from flask_cors import CORS
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 import time
 import collections
@@ -127,7 +127,7 @@ def network_stats():
 
 @app.route('/api/health', methods=['GET'])
 def health():
-    return jsonify({"status": "ok", "timestamp": datetime.utcnow().isoformat() + "Z"})
+    return jsonify({"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()})
 
 @app.route('/api/flow-table', methods=['GET'])
 def flow_table():
