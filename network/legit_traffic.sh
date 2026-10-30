@@ -1,7 +1,8 @@
 #!/bin/bash
-echo "Starting legitimate traffic from h1 to h3 (Server: 10.0.0.3)"
+echo "Starting steady legitimate traffic from h1 to h3 (Server: 10.0.0.3)..."
 echo "Press Ctrl+C to stop."
-while true; do
-    iperf -c 10.0.0.3 -u -b 1m -t 5 2>/dev/null
-    sleep 0.5
-done
+trap "echo 'Stopping traffic generator...'; exit 0" SIGINT SIGTERM
+
+# Continuous UDP stream at 10 Mbps (~850 pkts/s baseline) for 1 hour.
+# Eliminates periodic drop-to-zero dips caused by short iperf burst intervals.
+iperf -c 10.0.0.3 -u -b 10m -t 3600

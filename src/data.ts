@@ -20,6 +20,8 @@ export type Snapshot = {
   endpointsTotal: number
   metrics: {
     currentPps?: number
+    droppedPps?: number
+    forwardedPps?: number
     uptimeSec?: number
     activeRules: number
     mlLatencyMs: number
@@ -51,7 +53,7 @@ export function demoSnapshot(
 ): Snapshot {
   if (empty) return {
     health: 'operational', detectionMode: 'simulation', endpointsOnline: 0, endpointsTotal: 1,
-    metrics: { currentPps: 0, uptimeSec: 0, activeRules: 0, mlLatencyMs: 0 },
+    metrics: { currentPps: 0, droppedPps: 0, forwardedPps: 0, uptimeSec: 0, activeRules: 0, mlLatencyMs: 0 },
     traffic: { ingress: [], dropped: [], threshold: 10 }, threats: [], dropReasons: [],
   }
 
@@ -64,7 +66,10 @@ export function demoSnapshot(
     : ingress.map(n => (n > 10 ? Number((n * 0.95).toFixed(2)) : 0))
 
   const latestVal = ingress[ingress.length - 1] ?? 0.8
+  const latestDropVal = dropped[dropped.length - 1] ?? 0
   const currentPps = Math.round(latestVal * 1000)
+  const droppedPps = Math.round(latestDropVal * 1000)
+  const forwardedPps = Math.max(0, currentPps - droppedPps)
   const isAttackActive = latestVal > 10 || attack
   const hasBlockedThreat = isAttackActive || blocked
 
@@ -75,6 +80,8 @@ export function demoSnapshot(
     endpointsTotal: 1,
     metrics: {
       currentPps,
+      droppedPps,
+      forwardedPps,
       uptimeSec: 420,
       activeRules: hasBlockedThreat ? 5 : 4,
       mlLatencyMs: isAttackActive ? 3.4 : 2.8

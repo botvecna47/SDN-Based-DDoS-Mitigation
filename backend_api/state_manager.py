@@ -1,6 +1,6 @@
 import json
 import os
-from filelock import FileLock
+from filelock import FileLock, Timeout
 
 FALLBACK_THRESHOLD_PPS = 10_000
 
@@ -31,27 +31,36 @@ def initialize_state():
         "openflow_rules": [],
         "timestamp": "",
     }
-    with FileLock(LOCK_FILE):
-        with open(STATE_FILE, 'w') as f:
-            json.dump(default_state, f, indent=4)
+    try:
+        with FileLock(LOCK_FILE, timeout=2):
+            with open(STATE_FILE, 'w') as f:
+                json.dump(default_state, f, indent=4)
+    except Timeout:
+        pass
 
 def update_state(**kwargs):
     """RYU CONTROLLER uses this to push new data."""
-    with FileLock(LOCK_FILE):
-        try:
-            with open(STATE_FILE, 'r') as f:
-                state = json.load(f)
-            state.update(kwargs)
-            with open(STATE_FILE, 'w') as f:
-                json.dump(state, f, indent=4)
-        except (FileNotFoundError, json.JSONDecodeError):
-            pass # Failsafe if file is missing
+    try:
+        with FileLock(LOCK_FILE, timeout=2):
+            try:
+                with open(STATE_FILE, 'r') as f:
+                    state = json.load(f)
+                state.update(kwargs)
+                with open(STATE_FILE, 'w') as f:
+                    json.dump(state, f, indent=4)
+            except (FileNotFoundError, json.JSONDecodeError):
+                pass # Failsafe if file is missing
+    except Timeout:
+        pass
 
 def read_state():
     """FLASK API uses this to serve data to React."""
-    with FileLock(LOCK_FILE):
-        try:
-            with open(STATE_FILE, 'r') as f:
-                return json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            return {"error": "State file unavailable"}
+    try:
+        with FileLock(LOCK_FILE, timeout=2):
+            try:
+                with open(STATE_FILE, 'r') as f:
+                    return json.load(f)
+            except (FileNotFoundError, json.JSONDecodeError):
+                return {"error": "State file unavailable"}
+    except Timeout:
+        return {"error": "State file lock timeout"}

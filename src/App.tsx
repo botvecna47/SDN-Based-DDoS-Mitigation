@@ -3,20 +3,20 @@ import type { ReactNode } from 'react'
 import { demoSnapshot, endpoint, fetchSnapshot } from './data'
 import type { Snapshot, Threat } from './data'
 
-type IconName = 
-  | 'shield' 
-  | 'activity' 
-  | 'zap' 
-  | 'clock' 
-  | 'filter' 
-  | 'search' 
-  | 'download' 
-  | 'refresh' 
-  | 'alert' 
-  | 'check' 
-  | 'pause' 
-  | 'play' 
-  | 'close' 
+type IconName =
+  | 'shield'
+  | 'activity'
+  | 'zap'
+  | 'clock'
+  | 'filter'
+  | 'search'
+  | 'download'
+  | 'refresh'
+  | 'alert'
+  | 'check'
+  | 'pause'
+  | 'play'
+  | 'close'
   | 'menu'
   | 'trash'
 
@@ -40,16 +40,16 @@ function Icon({ name, size = 18, className = '' }: { name: IconName; size?: numb
   }
 
   return (
-    <svg 
-      className={className} 
-      width={size} 
-      height={size} 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="2" 
-      strokeLinecap="round" 
-      strokeLinejoin="round" 
+    <svg
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
       aria-hidden="true"
     >
       {paths[name]}
@@ -73,12 +73,12 @@ function smoothPath(values: number[], ceiling: number) {
   }, '')
 }
 
-function TrafficChart({ 
-  traffic, 
-  source 
-}: { 
+function TrafficChart({
+  traffic,
+  source
+}: {
   traffic: Snapshot['traffic']
-  source: 'demo' | 'live' 
+  source: 'demo' | 'live'
 }) {
   const [hover, setHover] = useState<number | null>(null)
   const ingress = traffic.ingress || []
@@ -113,12 +113,12 @@ function TrafficChart({
 
   return (
     <div className="relative mt-6 select-none">
-      <div 
-        className="relative h-[290px] w-full" 
+      <div
+        className="relative h-[290px] w-full"
         onMouseMove={event => {
           const bounds = event.currentTarget.getBoundingClientRect()
           setHover(Math.max(0, Math.min(ingress.length - 1, Math.round(((event.clientX - bounds.left) / bounds.width - 0.045) / 0.935 * (ingress.length - 1)))))
-        }} 
+        }}
         onMouseLeave={() => setHover(null)}
       >
         <svg viewBox="0 0 1000 250" preserveAspectRatio="none" className="h-full w-full overflow-visible" role="img" aria-label="Traffic history chart">
@@ -132,7 +132,7 @@ function TrafficChart({
               <stop offset="100%" stopColor="#e11d48" stopOpacity="0.0" />
             </linearGradient>
           </defs>
-          
+
           {/* Background Grid Lines & Y-Axis Labels */}
           {[0, 0.25, 0.5, 0.75, 1].map(fraction => (
             <g key={fraction}>
@@ -142,14 +142,14 @@ function TrafficChart({
           ))}
 
           {/* Anomaly Limit Threshold Line */}
-          <line 
-            x1="45" 
-            x2="980" 
-            y1={220 - traffic.threshold / ceiling * 190} 
-            y2={220 - traffic.threshold / ceiling * 190} 
-            stroke="#f97316" 
-            strokeWidth="1.5" 
-            strokeDasharray="5 5" 
+          <line
+            x1="45"
+            x2="980"
+            y1={220 - traffic.threshold / ceiling * 190}
+            y2={220 - traffic.threshold / ceiling * 190}
+            stroke="#f97316"
+            strokeWidth="1.5"
+            strokeDasharray="5 5"
           />
 
           {/* 1. Dropped Area Fill & Line (Rose/Red) */}
@@ -174,12 +174,12 @@ function TrafficChart({
 
         {/* Enhanced Multi-Metric Tooltip */}
         {activeHover !== null && (
-          <div 
+          <div
             className="pointer-events-none absolute z-30 rounded-xl border border-slate-700 bg-slate-900/95 p-3.5 text-sm text-white shadow-2xl backdrop-blur-sm"
-            style={{ 
-              left: `${Math.min(80, Math.max(16, (x / 1000) * 100))}%`, 
-              top: `${Math.max(8, Math.min(65, (y / 250) * 100))}%`, 
-              transform: 'translate(-50%, -100%)' 
+            style={{
+              left: `${Math.min(80, Math.max(16, (x / 1000) * 100))}%`,
+              top: `${Math.max(8, Math.min(65, (y / 250) * 100))}%`,
+              transform: 'translate(-50%, -100%)'
             }}
           >
             <div className="flex items-center justify-between border-b border-slate-700/80 pb-1.5 text-xs text-slate-400">
@@ -227,14 +227,14 @@ function TrafficChart({
   )
 }
 
-function MetricCard({ 
-  label, 
-  value, 
-  unit, 
+function MetricCard({
+  label,
+  value,
+  unit,
   detail,
   badge,
   badgeType = 'neutral'
-}: { 
+}: {
   label: string
   value: string
   unit?: string
@@ -308,10 +308,10 @@ export default function App() {
 
   // Has an attack occurred that installed a retained drop rule?
   const [hasDemoRetainedThreat, setHasDemoRetainedThreat] = useState(false)
-  
+
   // Continuous 48-entry sliding buffer - NEVER wiped on mode switch!
   const [demoTraffic, setDemoTraffic] = useState<{ ingress: number[]; dropped: number[] }>(() => {
-    const init = Array.from({ length: 48 }, (_, i) => 
+    const init = Array.from({ length: 48 }, (_, i) =>
       Number((0.82 + Math.sin(i * 0.4) * 0.05).toFixed(2))
     )
     return { ingress: init, dropped: new Array(48).fill(0) }
@@ -333,63 +333,92 @@ export default function App() {
     }
   })()
 
-  // 1-Second Continuous Live Streaming Loop
+  // Demo Mode Continuous 1-Second Sliding Buffer
   useEffect(() => {
-    if (!streaming) return
+    if (source !== 'demo' || !streaming) return
 
     const interval = window.setInterval(() => {
-      if (source === 'live') {
-        setRetry(value => value + 1)
+      const mode = demoModeRef.current
+      if (mode === 'loading' || mode === 'error') return
+
+      const now = Date.now() / 1000
+      let nextIngress = 0
+      let nextDropped = 0
+
+      if (mode === 'idle') {
+        nextIngress = 0
+        nextDropped = 0
+      } else if (mode === 'attack') {
+        // Attack traffic surges in real time into ~22k-26k PPS
+        const base = 23.4 + Math.sin(now * 0.8) * 1.6 + (Math.random() * 0.8 - 0.4)
+        nextIngress = Number(Math.max(18.0, base).toFixed(2))
+        // 96.5% of attack traffic dropped by OpenFlow 65535 rule; ~820 pkts/s clean traffic continues to pass
+        nextDropped = Number((nextIngress * 0.965).toFixed(2))
       } else {
-        const mode = demoModeRef.current
-        if (mode === 'loading' || mode === 'error') return
-
-        const now = Date.now() / 1000
-        let nextIngress = 0
-        let nextDropped = 0
-
-        if (mode === 'idle') {
-          nextIngress = 0
-          nextDropped = 0
-        } else if (mode === 'attack') {
-          // Attack traffic surges in real time into ~22k-26k PPS
-          const base = 23.4 + Math.sin(now * 0.8) * 1.6 + (Math.random() * 0.8 - 0.4)
-          nextIngress = Number(Math.max(18.0, base).toFixed(2))
-          // 96.5% of attack traffic dropped by OpenFlow 65535 rule; ~820 pkts/s clean traffic continues to pass
-          nextDropped = Number((nextIngress * 0.965).toFixed(2))
-        } else {
-          // Normal traffic: steady ~750-900 pkts/s baseline
-          const base = 0.82 + Math.sin(now * 0.4) * 0.06 + (Math.random() * 0.04 - 0.02)
-          nextIngress = Number(Math.max(0.65, base).toFixed(2))
-          nextDropped = 0
-        }
-
-        // Push new second to right, drop oldest from left (100% continuous, NO BUFFER RESETS!)
-        setDemoTraffic(prev => ({
-          ingress: [...prev.ingress.slice(1), nextIngress],
-          dropped: [...prev.dropped.slice(1), nextDropped],
-        }))
+        // Normal traffic: steady ~750-900 pkts/s baseline
+        const base = 0.82 + Math.sin(now * 0.4) * 0.06 + (Math.random() * 0.04 - 0.02)
+        nextIngress = Number(Math.max(0.65, base).toFixed(2))
+        nextDropped = 0
       }
+
+      // Push new second to right, drop oldest from left (100% continuous, NO BUFFER RESETS!)
+      setDemoTraffic(prev => ({
+        ingress: [...prev.ingress.slice(1), nextIngress],
+        dropped: [...prev.dropped.slice(1), nextDropped],
+      }))
     }, 1000)
 
     return () => window.clearInterval(interval)
   }, [source, streaming])
 
-  // Fetch Live Snapshot from Flask API
+  // Live Mode Sequential Polling Loop
+  // Sequential polling ensures in-flight requests are never prematurely canceled by a rigid interval timer.
   useEffect(() => {
     if (source !== 'live' || !streaming) return
-    const controller = new AbortController()
-    fetchSnapshot(controller.signal).then(data => {
-      setSnapshot(data)
-      setLoadState('ready')
-      setError('')
-    }).catch((cause: unknown) => {
-      if (controller.signal.aborted) return
-      setError(cause instanceof Error ? cause.message : 'Could not connect to Flask API. Ensure VM is running and VITE_DEFENSE_API_URL is configured.')
-      setLoadState('error')
-    })
-    return () => controller.abort()
-  }, [source, retry, streaming])
+
+    let cancelled = false
+    let timerId: number | undefined
+
+    const poll = async () => {
+      const controller = new AbortController()
+      // Generous 4s request timeout prevents stuck TCP sockets without killing normal responses
+      const timeoutId = window.setTimeout(() => controller.abort(), 4000)
+
+      try {
+        const data = await fetchSnapshot(controller.signal)
+        window.clearTimeout(timeoutId)
+        if (!cancelled) {
+          setSnapshot(data)
+          setLoadState('ready')
+          setError('')
+        }
+      } catch (cause: unknown) {
+        window.clearTimeout(timeoutId)
+        if (!cancelled && !controller.signal.aborted) {
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : 'Could not connect to Flask API. Ensure VM is running and VITE_DEFENSE_API_URL is configured.'
+          )
+          setLoadState('error')
+        }
+      } finally {
+        if (!cancelled) {
+          // Schedule next poll 1000ms after response finishes
+          timerId = window.setTimeout(poll, 1000)
+        }
+      }
+    }
+
+    poll()
+
+    return () => {
+      cancelled = true
+      if (timerId !== undefined) {
+        window.clearTimeout(timerId)
+      }
+    }
+  }, [source, streaming, retry])
 
   // Toggle Attack in Demo Mode (Smoothly ramps without wiping the graph!)
   const toggleDemoAttack = () => {
@@ -427,7 +456,7 @@ export default function App() {
 
   // Construct Data Object (Live vs Demo)
   const isThreatBlocked = source === 'demo' ? (isDemoAttacking || hasDemoRetainedThreat) : Boolean(snapshot?.threats && snapshot.threats.length > 0)
-  
+
   const data: Snapshot | null = source === 'demo'
     ? demoSnapshot(isDemoAttacking, demoMode === 'idle', demoTraffic.ingress, demoTraffic.dropped, isThreatBlocked)
     : snapshot
@@ -445,8 +474,8 @@ export default function App() {
   const latestDroppedK = droppedArr.length ? droppedArr[droppedArr.length - 1] : 0
 
   const currentIngressPps = data?.metrics.currentPps !== undefined ? data.metrics.currentPps : Math.round(latestIngressK * 1000)
-  const currentDroppedPps = Math.round(latestDroppedK * 1000)
-  const currentForwardedPps = Math.max(0, currentIngressPps - currentDroppedPps)
+  const currentDroppedPps = data?.metrics.droppedPps !== undefined ? data.metrics.droppedPps : Math.round(latestDroppedK * 1000)
+  const currentForwardedPps = data?.metrics.forwardedPps !== undefined ? data.metrics.forwardedPps : Math.max(0, currentIngressPps - currentDroppedPps)
   const dropPercentage = currentIngressPps > 0 ? ((currentDroppedPps / currentIngressPps) * 100).toFixed(1) : '0.0'
 
   const peakIngressK = ingressArr.length ? Math.max(...ingressArr) : 0
@@ -454,8 +483,8 @@ export default function App() {
   const noTraffic = source === 'live' && !offline && !underAttack && currentIngressPps === 0 && !data?.threats.length
 
   // Filtered threats
-  const rows = (data?.threats || []).filter(row => 
-    (severity === 'All severity' || row.severity === severity) && 
+  const rows = (data?.threats || []).filter(row =>
+    (severity === 'All severity' || row.severity === severity) &&
     `${row.ip} ${row.country} ${row.port} ${row.reason}`.toLowerCase().includes(search.toLowerCase())
   )
 
@@ -470,9 +499,9 @@ export default function App() {
     <div className="min-h-screen bg-slate-50 text-slate-800">
       {/* Mobile Backdrop */}
       {mobileMenu && (
-        <button 
-          className="fixed inset-0 z-30 bg-slate-900/40 lg:hidden" 
-          aria-label="Close menu" 
+        <button
+          className="fixed inset-0 z-30 bg-slate-900/40 lg:hidden"
+          aria-label="Close menu"
           onClick={() => setMobileMenu(false)}
         />
       )}
@@ -537,15 +566,15 @@ export default function App() {
           <div className="flex items-center gap-3">
             {/* Live vs Demo Toggle */}
             <div className="flex items-center rounded-lg border border-slate-200 bg-slate-100/90 p-0.5 text-xs sm:text-sm font-medium">
-              <button 
-                onClick={() => setSource('demo')} 
+              <button
+                onClick={() => setSource('demo')}
                 className={`rounded-md px-3.5 py-1.5 transition-colors ${source === 'demo' ? 'bg-white text-slate-900 shadow-sm font-semibold' : 'text-slate-500 hover:text-slate-800'}`}
               >
                 Demo
               </button>
-              <button 
+              <button
                 onClick={() => { setLoadState('loading'); setSource('live'); setStreaming(true) }}
-                disabled={!endpoint} 
+                disabled={!endpoint}
                 className={`rounded-md px-3.5 py-1.5 transition-colors ${source === 'live' ? 'bg-white text-slate-900 shadow-sm font-semibold' : 'text-slate-500 hover:text-slate-800'}`}
               >
                 Live
@@ -591,8 +620,8 @@ export default function App() {
                 Network Traffic &amp; DDoS Defense
               </h1>
               <p className="mt-2.5 text-base sm:text-lg text-slate-600 max-w-3xl leading-relaxed">
-                {source === 'demo' 
-                  ? 'Interactive simulation of OpenFlow packet monitoring, automatic anomaly detection, and instant traffic mitigation.' 
+                {source === 'demo'
+                  ? 'Interactive simulation of OpenFlow packet monitoring, automatic anomaly detection, and instant traffic mitigation.'
                   : 'Live telemetry streamed directly from Ryu SDN controller and Open vSwitch switch s1 in Mininet.'}
               </p>
             </div>
@@ -601,8 +630,8 @@ export default function App() {
             {source === 'demo' && (
               <div className="flex items-center gap-2.5 text-sm text-slate-600">
                 <span className="font-medium text-slate-500">Traffic Mode:</span>
-                <select 
-                  value={demoMode} 
+                <select
+                  value={demoMode}
                   onChange={event => handleDemoModeChange(event.target.value)}
                   className="rounded-lg border border-slate-200 bg-white px-3.5 py-1.5 text-sm font-semibold text-slate-800 shadow-sm outline-none hover:bg-slate-50 cursor-pointer"
                 >
@@ -656,26 +685,26 @@ export default function App() {
                   <div className="flex items-center gap-2.5">
                     <span className={`h-3 w-3 rounded-full ${underAttack ? 'bg-rose-500 animate-ping' : offline ? 'bg-slate-400' : isThreatBlocked ? 'bg-amber-500' : 'bg-emerald-500'}`} />
                     <span className={`text-xs sm:text-sm font-bold uppercase tracking-wider ${underAttack ? 'text-rose-700' : offline ? 'text-slate-600' : isThreatBlocked ? 'text-amber-800' : 'text-emerald-700'}`}>
-                      {underAttack 
-                        ? 'DDoS Attack Detected · Autonomous Mitigation Active' 
-                        : offline 
-                          ? 'Mininet Switch Offline' 
-                          : isThreatBlocked 
-                            ? 'Attack Mitigated · OpenFlow Rule Retained' 
-                            : noTraffic 
-                              ? 'Switch Connected · Idle' 
+                      {underAttack
+                        ? 'DDoS Attack Detected · Autonomous Mitigation Active'
+                        : offline
+                          ? 'Mininet Switch Offline'
+                          : isThreatBlocked
+                            ? 'Attack Mitigated · OpenFlow Rule Retained'
+                            : noTraffic
+                              ? 'Switch Connected · Idle'
                               : 'Network Operating Normally'}
                     </span>
                   </div>
                   <h2 className="mt-2 text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
-                    {underAttack 
-                      ? 'Malicious Traffic Intercepted & Being Dropped' 
-                      : offline 
-                        ? 'Waiting for Ryu and Mininet Telemetry' 
-                        : isThreatBlocked 
-                          ? 'Attacker Dropped · Legitimate Users Uninterrupted' 
-                          : empty || noTraffic 
-                            ? 'Waiting for Network Traffic' 
+                    {underAttack
+                      ? 'Malicious Traffic Intercepted & Being Dropped'
+                      : offline
+                        ? 'Waiting for Ryu and Mininet Telemetry'
+                        : isThreatBlocked
+                          ? 'Attacker Dropped · Legitimate Users Uninterrupted'
+                          : empty || noTraffic
+                            ? 'Waiting for Network Traffic'
                             : 'All Network Flows Safe & Verified'}
                   </h2>
                   <p className="mt-2 max-w-3xl text-sm sm:text-base text-slate-600 leading-relaxed">
@@ -692,20 +721,20 @@ export default function App() {
                 <div className="flex md:flex-col items-center md:items-end justify-between gap-2.5 border-t md:border-t-0 md:border-l border-slate-200 pt-4 md:pt-0 md:pl-8 shrink-0">
                   <div className="text-xs sm:text-sm font-medium text-slate-500">Switch Defense Policy</div>
                   <div className={`text-sm sm:text-base font-bold px-3.5 py-1.5 rounded-full ${
-                    underAttack 
-                      ? 'bg-rose-100 text-rose-800' 
-                      : offline 
-                        ? 'bg-slate-200 text-slate-700' 
-                        : isThreatBlocked 
-                          ? 'bg-amber-100 text-amber-800' 
+                    underAttack
+                      ? 'bg-rose-100 text-rose-800'
+                      : offline
+                        ? 'bg-slate-200 text-slate-700'
+                        : isThreatBlocked
+                          ? 'bg-amber-100 text-amber-800'
                           : 'bg-emerald-100 text-emerald-800'
                   }`}>
-                    {underAttack 
-                      ? 'ACTIVE DROP (Priority 65535)' 
-                      : isThreatBlocked 
-                        ? 'RULE RETAINED (Priority 65535)' 
-                        : offline 
-                          ? 'Waiting for Switch' 
+                    {underAttack
+                      ? 'ACTIVE DROP (Priority 65535)'
+                      : isThreatBlocked
+                        ? 'RULE RETAINED (Priority 65535)'
+                        : offline
+                          ? 'Waiting for Switch'
                           : 'Normal Forwarding'}
                   </div>
                   <div className="text-xs sm:text-sm text-slate-500 mt-0.5">
@@ -716,34 +745,34 @@ export default function App() {
 
               {/* 4 BALANCED METRIC CARDS: Incoming, Dropped, Clean Forwarded, Defense Engine */}
               <div className="mt-6 sm:mt-7 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-                <MetricCard 
-                  label="Total Ingress Rate" 
-                  value={currentIngressPps.toLocaleString()} 
-                  unit="pkts/s" 
+                <MetricCard
+                  label="Total Ingress Rate"
+                  value={currentIngressPps.toLocaleString()}
+                  unit="pkts/s"
                   badge={underAttack ? 'Surge' : 'Normal'}
                   badgeType={underAttack ? 'danger' : 'success'}
                   detail="Total incoming packet volume reaching switch s1 per second"
                 />
-                <MetricCard 
-                  label="Blocked / Dropped Rate" 
-                  value={currentDroppedPps.toLocaleString()} 
-                  unit="pkts/s" 
+                <MetricCard
+                  label="Blocked / Dropped Rate"
+                  value={currentDroppedPps.toLocaleString()}
+                  unit="pkts/s"
                   badge={currentDroppedPps > 0 ? `${dropPercentage}% Mitigated` : '0% Dropped'}
                   badgeType={currentDroppedPps > 0 ? 'danger' : 'neutral'}
                   detail={currentDroppedPps > 0 ? 'Malicious packets filtered at line-rate by Priority 65535 DROP rule' : 'No packets currently flagged for dropping'}
                 />
-                <MetricCard 
-                  label="Clean Forwarded Traffic" 
-                  value={currentForwardedPps.toLocaleString()} 
-                  unit="pkts/s" 
+                <MetricCard
+                  label="Clean Forwarded Traffic"
+                  value={currentForwardedPps.toLocaleString()}
+                  unit="pkts/s"
                   badge="Protected"
                   badgeType="success"
                   detail="Legitimate packets allowed through switch s1 to destination server h3"
                 />
-                <MetricCard 
+                <MetricCard
                   label="Defense Engine & Latency"
-                  value={`${data.metrics.mlLatencyMs.toFixed(1)}`} 
-                  unit="ms" 
+                  value={`${data.metrics.mlLatencyMs.toFixed(1)}`}
+                  unit="ms"
                   badge={data.detectionMode === 'machine_learning' ? 'ML Active' : 'PPS Threshold'}
                   badgeType="neutral"
                   detail={data.detectionMode === 'machine_learning' ? 'Random Forest DDoS classifier loaded' : 'Per-flow threshold fallback (>10,000 pkts/s)'}
@@ -788,9 +817,9 @@ export default function App() {
                       <span className="mono font-bold">{currentForwardedPps.toLocaleString()} pkts/s</span>
                     </div>
 
-                    <button 
-                      onClick={() => setStreaming(!streaming)} 
-                      aria-label={streaming ? 'Pause graph' : 'Resume graph'} 
+                    <button
+                      onClick={() => setStreaming(!streaming)}
+                      aria-label={streaming ? 'Pause graph' : 'Resume graph'}
                       className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors"
                       title={streaming ? 'Pause graph' : 'Resume graph'}
                     >
@@ -903,11 +932,11 @@ export default function App() {
                   <div className="flex flex-wrap items-center gap-3">
                     <div className="flex h-10 items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-3 text-slate-400">
                       <Icon name="search" size={16} />
-                      <input 
-                        value={search} 
-                        onChange={event => setSearch(event.target.value)} 
-                        placeholder="Search IP, host or reason..." 
-                        aria-label="Search blocked threats" 
+                      <input
+                        value={search}
+                        onChange={event => setSearch(event.target.value)}
+                        placeholder="Search IP, host or reason..."
+                        aria-label="Search blocked threats"
                         className="w-40 sm:w-52 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
                       />
                     </div>
@@ -922,9 +951,9 @@ export default function App() {
                       <option value="High">High</option>
                       <option value="Medium">Medium</option>
                     </select>
-                    <button 
-                      disabled={!rows.length} 
-                      onClick={() => exportCsv(rows)} 
+                    <button
+                      disabled={!rows.length}
+                      onClick={() => exportCsv(rows)}
                       className="flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                     >
                       <Icon name="download" size={15} /> Export CSV
@@ -986,8 +1015,8 @@ export default function App() {
 
                   {!rows.length && (
                     <div className="py-16 text-center text-sm text-slate-400">
-                      {data.threats.length 
-                        ? 'No blocked devices match the current search or severity filter.' 
+                      {data.threats.length
+                        ? 'No blocked devices match the current search or severity filter.'
                         : 'No devices are currently blocked. The network is clean.'}
                     </div>
                   )}

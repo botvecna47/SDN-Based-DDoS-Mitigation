@@ -4,6 +4,7 @@ from datetime import datetime
 import os
 import time
 import collections
+import threading
 from state_manager import FALLBACK_THRESHOLD_PPS, read_state, initialize_state
 
 app = Flask(__name__)
@@ -22,14 +23,40 @@ def add_no_cache_headers(response):
     response.headers["Expires"] = "0"
     return response
 
-# Rolling window for the 48-tick SVG chart in the new UI
-history_ingress = collections.deque([0]*48, maxlen=48)
-history_dropped = collections.deque([0]*48, maxlen=48)
-last_update_time = 0
+# Rolling window for the 48-tick SVG chart in the UI
+history_ingress = collections.deque([0.0]*48, maxlen=48)
+history_dropped = collections.deque([0.0]*48, maxlen=48)
+
+def history_collector():
+    """
+    Background daemon thread that records traffic rates every 1.0s.
+    Decouples chart history progression from API request frequency,
+    eliminating request-jitter stutter and dropped ticks.
+    """
+    while True:
+        try:
+            state = read_state()
+            last_updated_at = float(state.get("last_updated_at", 0) or 0)
+            switch_connected = bool(state.get("switch_connected", False)) and time.time() - last_updated_at <= 5
+
+            if switch_connected:
+                current_pps = max(0.0, float(state.get("current_pps", 0)))
+                mitigated_pps = max(0.0, float(state.get("dropped_pps", 0)))
+            else:
+                current_pps = 0.0
+                mitigated_pps = 0.0
+
+            history_ingress.append(round(current_pps / 1000.0, 2))
+            history_dropped.append(round(mitigated_pps / 1000.0, 2))
+        except Exception:
+            pass
+        time.sleep(1.0)
+
+collector_thread = threading.Thread(target=history_collector, daemon=True)
+collector_thread.start()
 
 @app.route('/api/network-stats', methods=['GET'])
 def network_stats():
-    global last_update_time
     try:
         state = read_state()
         if "error" in state:
@@ -49,14 +76,7 @@ def network_stats():
 
         # Ryu calculates this from the switch's source-IP DROP flow counters.
         mitigated_pps = max(0.0, float(state.get("dropped_pps", 0))) if switch_connected else 0.0
-        
-        # We only want to append to the chart history once per second max,
-        # otherwise fast API polling will artificially squash the chart time window.
-        now = time.time()
-        if now - last_update_time >= 1.0:
-            history_ingress.append(round(current_pps / 1000.0, 2)) # UI expects values in "k" (thousands)
-            history_dropped.append(round(mitigated_pps / 1000.0, 2))
-            last_update_time = now
+        forwarded_pps = max(0.0, current_pps - mitigated_pps)
 
         # Convert simple list of blocked IPs into the structured Threat object the UI expects
         threats = []
@@ -82,6 +102,8 @@ def network_stats():
             "endpointsTotal": 1,
             "metrics": {
                 "currentPps": int(current_pps),
+                "droppedPps": int(mitigated_pps),
+                "forwardedPps": int(forwarded_pps),
                 "uptimeSec": int(state.get("controller_uptime_sec", 0)),
                 "activeRules": active_flows if switch_connected else 0,
                 "mlLatencyMs": float(state.get("inference_latency_ms", 3.1))
@@ -96,7 +118,7 @@ def network_stats():
                 {"reason": "ML classifier" if state.get("detection_mode") == "machine_learning" else "PPS threshold fallback", "share": 100},
             ] if threats else []
         }
-        
+
         response = make_response(jsonify(snapshot))
         return add_no_cache_headers(response)
     except Exception as e:
