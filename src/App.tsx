@@ -771,11 +771,11 @@ export default function App() {
                 />
                 <MetricCard
                   label="Defense Engine & Latency"
-                  value={`${data.metrics.mlLatencyMs.toFixed(1)}`}
+                  value={`${data.metrics.mlLatencyMs < 1.0 ? data.metrics.mlLatencyMs.toFixed(2) : data.metrics.mlLatencyMs.toFixed(1)}`}
                   unit="ms"
                   badge={data.detectionMode === 'machine_learning' ? 'ML Active' : 'PPS Threshold'}
-                  badgeType="neutral"
-                  detail={data.detectionMode === 'machine_learning' ? 'Random Forest DDoS classifier loaded' : 'Per-flow threshold fallback (>10,000 pkts/s)'}
+                  badgeType={data.detectionMode === 'machine_learning' ? 'success' : 'neutral'}
+                  detail={data.detectionMode === 'machine_learning' ? 'CIC-DDoS2019 Decision Tree active (< 1.0 ms SLA)' : 'Per-flow threshold fallback (>10,000 pkts/s)'}
                 />
               </div>
 

@@ -1,4 +1,4 @@
-﻿# Academic UML Diagrams & Risk Management
+# Academic UML Diagrams & Risk Management
 ## SDN-Based DDoS Detection and Mitigation System
 
 This document supplements the core architecture with formal UML diagrams and risk analysis typically required for academic evaluations and rigorous software engineering standards.
@@ -40,86 +40,117 @@ flowchart LR
     UC6 -.->|Protects| UC3
 ```
 
-### 1.2 Class Diagram (Backend & ML)
-Shows the object-oriented structure of the Controller and API layer.
+### 1.2 Class Diagram (Backend, Controller & ML Architecture)
+Shows the object-oriented structure and module interfaces of the SDN Controller, Inference Engine, and Backend API.
 
 ```mermaid
 classDiagram
-    class RyuControllerApp {
+    class SimpleMonitor13 {
         +mac_to_port: dict
-        +monitor_thread: Thread
+        +datapaths: dict
+        +blocked_ips: set
+        +flow_history: dict
+        +detector: DDoSDetector
+        +monitor_thread: hub.spawn
         +__init__()
+        +state_change_handler(ev)
+        +flow_removed_handler(ev)
+        +switch_features_handler(ev)
+        +add_flow(datapath, priority, match, actions)
         +packet_in_handler(ev)
-        +flow_stats_reply_handler(ev)
-        +request_stats()
-        +push_drop_rule(ip_src)
+        +_monitor()
+        +_request_stats(datapath)
+        +_flow_stats_reply_handler(ev)
+        +_run_inference(stats_dict, datapath)
+        +_log_to_csv(stats_dict)
     }
 
-    class MLDetector {
-        -model: RandomForestClassifier
-        -scaler: StandardScaler
-        +load_model(filepath)
-        +extract_features(flow_stats)
-        +predict(features): boolean
+    class DDoSDetector {
+        +model: RandomForestClassifier
+        +is_loaded: boolean
+        +__init__(model_path)
+        +predict(pps, bps, duration_sec, packet_count): tuple
     }
 
-    class FlowLogger {
-        +filepath: string
-        +log_to_csv(stats_dict)
-    }
-
-    class FlaskAPI {
-        +state_manager: StateManager
-        +get_network_stats(): JSON
-        +get_blocked_ips(): JSON
+    class MitigationEngine {
+        +push_drop_rule(datapath, src_ip)
+        +push_rate_limit_rule(datapath, src_ip, rate_kbps)
     }
 
     class StateManager {
-        +current_pps: int
-        +status: string
-        +blocked_ips: list
-        +update_state(new_data)
+        +STATE_FILE_PATH: string
+        +FALLBACK_THRESHOLD_PPS: int
+        +initialize_state(): dict
+        +read_state(): dict
+        +update_state(kwargs): dict
     }
 
-    RyuControllerApp --> FlowLogger : "Logs raw stats"
-    RyuControllerApp --> MLDetector : "Passes stats for inference"
-    RyuControllerApp --> StateManager : "Updates memory state"
-    FlaskAPI --> StateManager : "Reads memory state"
+    class FlaskAPI {
+        +network_stats(): Response
+        +flow_table(): Response
+        +health(): Response
+        +add_no_cache_headers(response)
+    }
+
+    class ReactDashboard {
+        +source: "demo" | "live"
+        +demoMode: DemoMode
+        +snapshot: Snapshot
+        +fetchSnapshot(signal): Promise
+        +TrafficChart(traffic)
+        +MetricCard(label, value)
+    }
+
+    SimpleMonitor13 --> DDoSDetector : "Invokes predict() on flow delta"
+    SimpleMonitor13 --> MitigationEngine : "Calls push_drop_rule() on attack"
+    SimpleMonitor13 --> StateManager : "Writes telemetry via update_state()"
+    FlaskAPI --> StateManager : "Reads state via read_state()"
+    ReactDashboard --> FlaskAPI : "Polls GET /api/network-stats"
 ```
 
 ### 1.3 Deployment Diagram
-Maps software components to virtual/physical hardware.
+Maps software components to virtual/physical hardware and network boundaries.
 
 ```mermaid
 flowchart TD
-    subgraph Host["Host Machine (Windows/Mac)"]
-        Browser["Web Browser\n(React UI)"]
-        
-        subgraph VM["Ubuntu VM (Hypervisor)"]
-            subgraph Mininet["Mininet Virtual Sandbox"]
-                h1["h1 (User)"]
-                h2["h2 (Attacker)"]
-                h3["h3 (Server)"]
-                s1["s1 (OVS Switch)"]
+    subgraph WindowsHost["🖥️ Host Machine (Windows 11)"]
+        Browser["🌐 Web Browser\n(Google Chrome / Edge)"]
+        ViteServer["⚡ Vite React Dev Server\n(localhost:5173 · Node.js)"]
+        Browser <-->|"Render DOM & SVG Charts"| ViteServer
+    end
+
+    subgraph VMware["📦 VMware Workstation / Hypervisor"]
+        subgraph UbuntuVM["🐧 Guest OS: Ubuntu Linux (Bridged IP: 192.168.x.x)"]
+            subgraph ControllerProc["Ryu Controller Process (Python 3.9 venv)"]
+                Ryu["🛡️ Ryu SDN Controller (:6653)\n(controller/simple_monitor.py)"]
+                Detector["🧠 DDoS Detector (Inference / Fallback)\n(controller/inference_loader.py)"]
+                CSV["📊 Dataset Logger\n(controller/traffic_dataset.csv)"]
+                Ryu --- Detector
+                Ryu --- CSV
             end
-            
-            subgraph ControllerNode["Controller Process"]
-                Ryu["Ryu Controller (Port 6653)"]
-                ML["ML Engine (.joblib)"]
+
+            subgraph BackendProc["Flask Web Service Process (Python 3.9 venv)"]
+                Flask["🚀 Flask REST API (:5000)\n(backend_api/app.py)"]
+                IPC[("📁 shared_state.json\n(Atomic FileLock)")]
+                Flask <--> IPC
             end
-            
-            subgraph APINode["API Process"]
-                Flask["Flask App (Port 5000)"]
+
+            subgraph MininetSandbox["Mininet Virtual Network Namespace"]
+                H1["👤 Host h1 (10.0.0.1)\nLegitimate Client"]
+                H2["🥷 Host h2 (10.0.0.2)\nAttacker"]
+                H3["🎯 Host h3 (10.0.0.3)\nTarget Server (UDP 5001)"]
+                S1{{"⚡ Switch s1\nOpen vSwitch Kernel Switch"}}
+                
+                H1 ---|"veth pair"| S1
+                H2 ---|"veth pair"| S1
+                S1 ---|"veth pair"| H3
             end
         end
     end
 
-    Browser <-->|HTTP GET| Flask
-    Flask <-->|IPC / State| Ryu
-    s1 <-->|OpenFlow 1.3| Ryu
-    h1 --> s1
-    h2 --> s1
-    s1 --> h3
+    ViteServer <-->|"HTTP REST (TCP :5000)\nCross-Origin Requests"| Flask
+    Ryu -->|"Thread-safe IPC Write"| IPC
+    S1 <-->|"OpenFlow 1.3 (TCP :6653)\nStatsRequest & FlowMod"| Ryu
 ```
 
 ### 1.4 Visual Project Timeline (Gantt Chart)

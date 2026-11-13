@@ -34,6 +34,42 @@ We need a **smart traffic cop** that lives in the network itself. This system mu
 
 The system is built as a 5-layer stack, each layer with a well-defined responsibility:
 
+```mermaid
+flowchart TD
+    subgraph Layer5["Layer 5 — Presentation Layer (React 19 Dashboard)"]
+        UI["⚛️ Web Dashboard (http://localhost:5173)\nLive 48s 3-Curve Traffic History, Status Banners & Blocked Table"]
+    end
+
+    subgraph Layer4["Layer 4 — API Layer (Flask REST Service)"]
+        Flask["🚀 Flask API (0.0.0.0:5000)\nEndpoints: /api/network-stats, /api/flow-table, /api/health"]
+        IPC[("📁 shared_state.json\nThread-Safe FileLock IPC")]
+        Flask <--> IPC
+    end
+
+    subgraph Layer3["Layer 3 — Intelligence Layer (ML Random Forest / PPS Fallback)"]
+        ML["🧠 Anomaly Classifier (inference_loader.py)\nRandom Forest (PPS, BPS, duration, packets) or Fallback (>10,000 pkts/s)"]
+    end
+
+    subgraph Layer2["Layer 2 — Control Layer (Ryu SDN Controller)"]
+        Ryu["🛡️ Ryu OpenFlow 1.3 App (simple_monitor.py)\nPolls switch flows every 1.5s, installs Priority 65535 DROP rules"]
+    end
+
+    subgraph Layer1["Layer 1 — Virtual Network Layer (Mininet / Open vSwitch)"]
+        H1["👤 h1: Legitimate User (10.0.0.1)"]
+        H2["🥷 h2: DDoS Attacker (10.0.0.2)"]
+        H3["🎯 h3: Target Server (10.0.0.3)"]
+        S1{{"⚡ s1: Open vSwitch (OVS)\nOpenFlow 1.3 Kernel Switch"}}
+        H1 --- S1
+        H2 --- S1
+        S1 --- H3
+    end
+
+    UI <-->|"HTTP REST Polling (1s)"| Flask
+    Ryu -->|"Write State"| IPC
+    Ryu <-->|"Classify Flow Deltas"| ML
+    S1 <-->|"OpenFlow 1.3 (Port 6653)\nStatsRequest / OFPFlowMod"| Ryu
+```
+
 **Layer 1 — Virtual Network (Mininet / Open vSwitch):** Mininet emulates a realistic network topology consisting of three hosts and one software switch (OVS). Host `h1` (10.0.0.1) simulates legitimate traffic, host `h2` (10.0.0.2) simulates an attacker firing a high-rate flood, and host `h3` (10.0.0.3) acts as the victim server. Open vSwitch provides a full OpenFlow 1.3-capable data plane that can receive and enforce flow modification instructions from the controller. This layer makes the entire experiment reproducible on a single Ubuntu VM with no physical hardware.
 
 **Layer 2 — Control Layer (Ryu SDN Controller):** The Ryu controller runs as an OpenFlow 1.3 controller, maintaining persistent connections to all switches in the topology. Every 1–2 seconds it proactively sends `OFPFlowStatsRequest` messages to the switch and collects per-flow statistics (packet counts, byte counts, durations). This layer acts as the network's "nervous system," providing a real-time telemetry feed of everything happening on the wire. When the Intelligence Layer signals an attack, Ryu immediately pushes an `OFPFlowMod` with a maximum-priority drop action to the switch, cutting off the attack source at line rate.

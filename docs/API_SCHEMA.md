@@ -5,6 +5,31 @@ This document outlines the API contract between the Flask backend and the React 
 ## 1. Purpose
 The backend exposes a consolidated set of endpoints. Notably, a single endpoint (`/api/network-stats`) drives the entire dashboard's visual state, metrics, chart data, and blocked IPs. There is no separate blocked IPs endpoint.
 
+```mermaid
+sequenceDiagram
+    autonumber
+    participant React as ⚛️ React Dashboard (Port 5173)
+    participant Flask as 🚀 Flask REST API (Port 5000)
+    participant IPC as 📁 shared_state.json (FileLock)
+    participant Ryu as 🛡️ Ryu Controller (Port 6653)
+
+    Ryu->>IPC: Atomic write: current_pps, dropped_pps, threats, status
+    loop Every 1.0 Second Polling
+        React->>Flask: GET /api/network-stats (Accept: application/json)
+        Flask->>IPC: read_state() with shared lock
+        IPC-->>Flask: State dict (or 503 if lock error)
+        Flask->>Flask: Append to 48-tick rolling history (Ingress/Dropped)
+        Flask-->>React: 200 OK (Full Snapshot JSON)
+        React->>React: parseSnapshot(data) -> Render 3-curve chart & cards
+    end
+
+    opt Manual / Audit Inspection
+        React->>Flask: GET /api/flow-table
+        Flask->>IPC: Read openflow_rules
+        Flask-->>React: 200 OK (ALLOWED vs BLOCKED flows breakdown)
+    end
+```
+
 ## 2. Base Configuration
 
 | Property | Value |

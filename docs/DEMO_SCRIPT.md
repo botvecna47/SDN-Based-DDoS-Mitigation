@@ -27,12 +27,39 @@ Ensure all components are running before presenting.
    npm run dev
    ```
 
-## 2. Window Layout
+## 2. Presentation Flowchart
+
+```mermaid
+flowchart LR
+    Act1["🟢 Act 1: Baseline\n(Normal ~85 pkts/s)\nh1 legit_traffic.sh\nUI: Green 'Operational'"] --> Act2["🚨 Act 2: Attack Launch\n(Surge to ~24,000 pkts/s)\nh2 hping3 --flood\nUI: Red 'Threat Detected'"]
+    Act2 --> Act3["🛡️ Act 3: Auto-Mitigation\nPriority 65535 DROP\nSwitch drops 600k pkts\nh1 traffic protected"]
+    Act3 --> Act4["🔄 Act 4: Recovery\nh2 pkill hping3\nPPS drops to ~85 pkts/s\nRule retained 300s idle"]
+```
+
+## 3. Window Layout
 
 Organize your screen to maximize visibility of system interactions:
+
+```mermaid
+flowchart TD
+    subgraph Screen["🖥️ Suggested Screen Arrangement"]
+        direction TB
+        subgraph TopHalf["Top Half of Screen"]
+            direction LR
+            RyuTerm["📟 Terminal 1: Ryu Controller\n(Watching polling & drop logs)"]
+            ReactUI["🌐 React Dashboard\n(http://localhost:5173)\nLive 3-curve graph & metrics"]
+        end
+        subgraph BottomHalf["Bottom Half of Screen"]
+            direction LR
+            MininetTerm["📟 Terminal 3: Mininet CLI\n(Ready for traffic & attacks)"]
+            FlaskTerm["📟 Terminal 2: Flask API\n(HTTP 200 GET telemetry logs)"]
+        end
+    end
+```
+
 ```text
 +-------------------------+-------------------------+
-| [Ryu Terminal]          | [Sentinel Dashboard]    |
+| [Ryu Terminal]          | [React Dashboard]       |
 | Showing stat polling    | Showing live chart      |
 | and detection logs      | http://localhost:5173   |
 +-------------------------+-------------------------+
@@ -41,39 +68,43 @@ Organize your screen to maximize visibility of system interactions:
 +-------------------------+-------------------------+
 ```
 
-## 3. Act 1: Baseline (2 min)
-**Action:** Show the dashboard and Mininet CLI.
-**Talk Track:** "Welcome to our SDN DDoS defense project. We have an emulated Mininet topology with OVS and Ryu. Notice our dashboard is green ('operational'). Legitimate traffic is flowing steadily."
-
-## 4. Act 2: Attack Launch (1 min)
-**Action:** In Mininet CLI, run:
+## 4. Act 1: Baseline (2 min)
+**Action:** Show the dashboard and Mininet CLI. Start legitimate user traffic:
 ```bash
-mininet> xterm h2
-# In h2 xterm:
-sudo hping3 --flood --udp -p 80 10.0.0.3
+mininet> h1 bash network/legit_traffic.sh &
 ```
-**Talk Track:** "I'm now launching a UDP flood attack from node h2 towards our server at h3."
+**Talk Track:** "Welcome to our SDN DDoS defense project. We have an emulated Mininet topology with Open vSwitch s1 and Ryu SDN controller. Notice our dashboard is green ('Network Operating Normally'). Legitimate user h1 is streaming UDP traffic steadily at ~85 packets per second."
 
-## 5. Act 3: Autonomous Defense (1 min)
-**Action:** Point to the dashboard changing state and the Ryu terminal output. Show the installed OpenFlow rule:
+## 5. Act 2: Attack Launch (1 min)
+**Action:** In Mininet CLI, launch the high-rate UDP flood attack:
 ```bash
-# In Mininet CLI:
-mininet> sh ovs-ofctl dump-flows s1
+mininet> h2 hping3 --flood --udp -p 80 10.0.0.3 &
 ```
-**Talk Track:** "Within a few statistics cycles, Ryu detects the PPS threshold breach (>10k) when the fallback is active. A high-priority DROP rule (65535) is pushed to OVS. The dashboard shows the attacker's blocked-flow counters while h1's legitimate traffic continues."
+*(Optionally use `xterm h2` if graphical display forwarding is active).*
+**Talk Track:** "I am now launching a volumetric UDP flood attack from rogue node h2 towards our victim server h3 at 10.0.0.3."
 
-## 6. Act 4: Recovery (1 min)
-**Action:** Stop the `hping3` command in `h2` xterm.
-**Talk Track:** "Once the attack halts, dropped PPS falls back to zero and the network status returns to operational. The attacker remains in the blocked table until the switch's idle-timeout removes the rule after five minutes without matching traffic."
+## 6. Act 3: Autonomous Defense (1 min)
+**Action:** Point to the dashboard changing state in real-time and the Ryu terminal output. Show the installed OpenFlow rule on the switch:
+```bash
+mininet> sh ovs-ofctl dump-flows s1 -O OpenFlow13
+```
+**Talk Track:** "Within two seconds, Ryu's flow polling engine detects the PPS threshold breach (>10,000 pkts/s). An OpenFlow Priority 65535 DROP rule is immediately pushed to the switch for source IP 10.0.0.2. Over 600,000 attack packets are discarded directly at the switch port, while legitimate user h1's traffic continues uninterrupted!"
 
-## 7. Bonus: Flow Table Inspection
-**Action:** In an Ubuntu terminal, run:
+## 7. Act 4: Recovery (1 min)
+**Action:** Stop the attack flood in Mininet:
+```bash
+mininet> h2 pkill -9 hping3
+```
+**Talk Track:** "Once the attack halts, total ingress falls back to our normal baseline (~85 pkts/s) and the dashboard returns to green. Notice that attacker 10.0.0.2 remains in the Blocked Devices table with a 'RULE RETAINED' badge until the switch's 300-second idle-timeout expires, protecting the server against burst re-offenders."
+
+## 8. Bonus: Flow Table Inspection
+**Action:** In an Ubuntu terminal or browser, inspect the human-readable flow table:
 ```bash
 curl http://192.168.8.147:5000/api/flow-table
 ```
-**Talk Track:** "We also have an API to inspect live OpenFlow rules, cleanly categorizing allowed flows vs blocked flows."
+**Talk Track:** "We also built a dedicated OpenFlow inspection endpoint that separates ALLOWED flows, BLOCKED flows, and the TABLE-MISS rule for academic auditability."
 
-## 8. Q&A
+## 9. Q&A
 
 **Q: Are you using machine learning?**
 A: We have designed an ML pipeline with a RandomForestClassifier. Currently, the controller uses a robust fallback threshold (PPS > 10,000) while the model `detector.joblib` completes training.

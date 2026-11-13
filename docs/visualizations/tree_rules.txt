@@ -1,0 +1,40 @@
+|--- Inbound <= -0.64
+|   |--- Destination Port <= -0.94
+|   |   |--- Min Packet Length <= -0.03
+|   |   |   |--- Destination Port <= -0.99
+|   |   |   |   |--- Flow Bytes/s <= -0.49
+|   |   |   |   |   |--- truncated branch of depth 3
+|   |   |   |   |--- Flow Bytes/s >  -0.49
+|   |   |   |   |   |--- truncated branch of depth 3
+|   |   |   |--- Destination Port >  -0.99
+|   |   |   |   |--- class: 0
+|   |   |--- Min Packet Length >  -0.03
+|   |   |   |--- class: 1
+|   |--- Destination Port >  -0.94
+|   |   |--- class: 1
+|--- Inbound >  -0.64
+|   |--- Source Port <= -1.10
+|   |   |--- Protocol <= -1.82
+|   |   |   |--- Down/Up Ratio <= 0.30
+|   |   |   |   |--- class: 0
+|   |   |   |--- Down/Up Ratio >  0.30
+|   |   |   |   |--- class: 1
+|   |   |--- Protocol >  -1.82
+|   |   |   |--- class: 0
+|   |--- Source Port >  -1.10
+|   |   |--- Destination Port <= -1.19
+|   |   |   |--- Destination Port <= -1.19
+|   |   |   |   |--- class: 1
+|   |   |   |--- Destination Port >  -1.19
+|   |   |   |   |--- class: 0
+|   |   |--- Destination Port >  -1.19
+|   |   |   |--- Destination Port <= -1.19
+|   |   |   |   |--- Init_Win_bytes_backward <= -0.17
+|   |   |   |   |   |--- truncated branch of depth 2
+|   |   |   |   |--- Init_Win_bytes_backward >  -0.17
+|   |   |   |   |   |--- class: 1
+|   |   |   |--- Destination Port >  -1.19
+|   |   |   |   |--- Destination Port <= -0.80
+|   |   |   |   |   |--- truncated branch of depth 2
+|   |   |   |   |--- Destination Port >  -0.80
+|   |   |   |   |   |--- class: 1

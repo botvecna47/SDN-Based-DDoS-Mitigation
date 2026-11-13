@@ -8,8 +8,45 @@
 
 ## 🗺️ Architecture — What Runs Where
 
+```mermaid
+flowchart TB
+    subgraph VM["🐧 Ubuntu Virtual Machine (Bridged IP: e.g. 192.168.x.x)"]
+        subgraph Terminal1["Terminal 1: Controller"]
+            Ryu["🛡️ Ryu SDN Controller\n(controller/simple_monitor.py)\nListens on TCP:6653"]
+        end
+
+        subgraph Terminal2["Terminal 2: Backend API"]
+            StateFile[("📁 shared_state.json\nThread-Safe FileLock")]
+            Flask["🚀 Flask REST API\n(backend_api/app.py)\nServes on TCP:5000"]
+        end
+
+        subgraph Terminal3["Terminal 3: Mininet Network"]
+            H1["👤 Host h1 (10.0.0.1)\nLegitimate User"]
+            H2["🥷 Host h2 (10.0.0.2)\nAttacker"]
+            H3["🎯 Host h3 (10.0.0.3)\nTarget Server (iperf)"]
+            S1{{"⚡ Open vSwitch s1\nOpenFlow 1.3 Datapath"}}
+
+            H1 --- S1
+            H2 --- S1
+            S1 --- H3
+        end
+
+        S1 <-->|"OpenFlow 1.3\n(Stats & Drop Rules)"| Ryu
+        Ryu -->|"Writes Telemetry"| StateFile
+        Flask -->|"Reads Telemetry"| StateFile
+    end
+
+    subgraph WindowsHost["🖥️ Windows Host Machine"]
+        subgraph Terminal4["Terminal 4: React UI"]
+            React["⚛️ React Dashboard\n(App.tsx)\nhttp://localhost:5173"]
+        end
+    end
+
+    React <-->|"HTTP GET /api/network-stats\n(Polls every 1s via REST)"| Flask
 ```
-Ubuntu VM (192.168.8.147)                 Windows Machine
+
+```
+Ubuntu VM (192.168.x.x)                    Windows Machine
 ┌─────────────────────────────┐           ┌──────────────────────────┐
 │ Terminal 1: Ryu Controller  │           │ Terminal: React Dashboard │
 │ → port 6653 (OpenFlow)      │           │ → http://localhost:5173   │
@@ -36,6 +73,13 @@ Ubuntu VM (192.168.8.147)                 Windows Machine
 > [!IMPORTANT]
 > **Rule 1 — Order always matters:** Ryu → Flask → Mininet → React.
 > Never start Mininet before Ryu. The switch connects to the controller on startup. If Ryu is not running, the switch has no controller and drops all packets.
+
+```mermaid
+flowchart LR
+    Step1["① Terminal 1\nRyu Controller\n(Port 6653)"] -->|Listens for Switch| Step2["② Terminal 2\nFlask REST API\n(Port 5000)"]
+    Step2 -->|Initializes State| Step3["③ Terminal 3\nMininet Network\n(sudo mn -c && topo.py)"]
+    Step3 -->|Connects s1 to Ryu| Step4["④ Windows Terminal\nReact Dashboard\n(npm run dev)"]
+```
 
 > [!IMPORTANT]
 > **Rule 2 — Always clean before Mininet:** Run `sudo mn -c` before every `sudo python3 network/topo.py`.
@@ -116,9 +160,9 @@ instantiating app controller/simple_monitor.py of SimpleMonitor13
 Ryu is running
 ```
 
-**Expected warning (this is fine, not an error):**
+**Active ML Model Notice:**
 ```
-detector.joblib not found. Using PPS > 10000 threshold fallback
+[DDoSDetector] Tier 1 Active: CIC-DDoS2019 Decision Tree (99.99% Acc, ANOVA)
 ```
 
 **🛑 DO NOT continue until you see Ryu is running.**
@@ -208,6 +252,46 @@ Open your browser at: **http://localhost:5173**
 
 ## 🎬 Demo Walkthrough
 
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Presenter / Admin
+    participant H1 as Host h1 (User)
+    participant H2 as Host h2 (Attacker)
+    participant S1 as Switch s1 (OVS)
+    participant Ryu as Ryu Controller
+    participant Flask as Flask API
+    participant UI as React UI (Browser)
+
+    Note over User,UI: Act 1 — Normal Traffic Baseline (~85 pkts/s)
+    User->>H1: Run legit_traffic.sh &
+    H1->>S1: Normal UDP traffic (1 Mbps iperf to h3)
+    S1->>Ryu: OFPFlowStatsReply (PPS ~ 85)
+    Ryu->>Flask: Write shared_state (NORMAL, current_pps ~ 85)
+    UI->>Flask: Poll /api/network-stats
+    Flask-->>UI: Safe Baseline (Green Banner)
+
+    Note over User,UI: Act 2 & 3 — DDoS Attack & Autonomous Line-Rate Drop
+    User->>H2: hping3 --flood --udp -p 80 10.0.0.3 &
+    H2->>S1: High-rate UDP flood (~24,000 pkts/s)
+    S1->>Ryu: OFPFlowStatsReply (PPS > 10,000 Threshold)
+    Ryu->>Ryu: Trigger Detection (Attacker IP: 10.0.0.2)
+    Ryu->>S1: OFPFlowMod (Priority 65535, match 10.0.0.2, action=DROP)
+    S1-->>H2: 600,000+ Attack Packets DROPPED at Line-Rate
+    S1->>H1: Legitimate User Traffic Continues Uninterrupted
+    Ryu->>Flask: Write shared_state (UNDER_ATTACK, 10.0.0.2 Blocked)
+    UI->>Flask: Poll /api/network-stats
+    Flask-->>UI: Surge Alert (Red Banner, Dropped Line Spikes, Threat Row Added)
+
+    Note over User,UI: Act 4 — Recovery & Idle Rule Retention
+    User->>H2: pkill -9 hping3
+    H2-->>S1: Attack Stops
+    S1->>Ryu: OFPFlowStatsReply (PPS drops back to normal)
+    Ryu->>Flask: Write shared_state (NORMAL, Rule Retained)
+    UI->>Flask: Poll /api/network-stats
+    Flask-->>UI: Normal Status (10.0.0.2 retained until 300s timeout)
+```
+
 ### Act 1 — Baseline: Normal Traffic
 
 At the Mininet `mininet>` prompt:
@@ -226,46 +310,48 @@ This is the legitimate user (h1) sending normal UDP traffic to the server (h3). 
 
 ### Act 2 — DDoS Attack Launched
 
+At the Mininet `mininet>` prompt, launch the flood in the background:
+```text
+mininet> h2 hping3 --flood --udp -p 80 10.0.0.3 &
 ```
-mininet> xterm h2
-```
-A small black terminal opens. Inside it type:
-```bash
-sudo hping3 --flood --udp -p 80 10.0.0.3
-```
+*(Tip: You do not need `sudo` inside Mininet as the Mininet process already runs with root capabilities. If you prefer a separate graphical window, you can run `mininet> xterm h2` and execute `hping3 --flood --udp -p 80 10.0.0.3`).*
 
-**What you see on dashboard (after Ryu receives flow statistics):**
-- 📈 Blue line spikes dramatically above the red threshold line
-- Health card changes to: **"Threat detected"** (dark/red)
-- Ryu prints (in Terminal 1): `DDoS Detected from 10.0.0.2! Pushing drop rule...`
+**What you see on dashboard (after Ryu receives flow statistics within 1.5s):**
+- 📈 Total Incoming line spikes dramatically above the orange threshold line (~24k pkts/s)
+- Top banner turns red: **"DDoS Attack Detected · Autonomous Mitigation Active"**
+- Ryu logs in Terminal 1: `DDoS Detected from 10.0.0.2! Pushing drop rule...`
 
 ---
 
 ### Act 3 — Autonomous Mitigation
 
-Without any manual command:
-- Ryu installs a **Priority 65535 DROP rule** for `10.0.0.2`
-- `10.0.0.2` appears in the **Blocked threats** table with the active detection mode shown by the API
-- The **Why Traffic Was Blocked** panel identifies the ML model or PPS fallback used for the detection
-- The teal "Dropped" line appears on the chart showing blocked traffic volume
-- h1's legitimate traffic **continues uninterrupted**
+Without any manual administrator action:
+- Ryu installs a **Priority 65535 DROP rule** for `10.0.0.2` on switch `s1`
+- 🔴 The red **Blocked Traffic** line rises on the chart to intercept the attack
+- 🟢 The green **Clean Forwarded** line stays flat at ~85 pkts/s — legitimate user `h1` traffic **continues uninterrupted**!
+- `10.0.0.2` appears in the **Blocked Devices & Security Events** table with active drop status
+- The **Detection Trigger Breakdown** panel identifies the active classifier or threshold fallback
 
-To verify the DROP rule is installed on the switch:
+To verify the DROP rule directly on the switch:
+```text
+mininet> sh ovs-ofctl dump-flows s1 -O OpenFlow13
 ```
-mininet> sh ovs-ofctl dump-flows s1
-```
-You should see an entry with `priority=65535, nw_src=10.0.0.2` and `actions=drop`.
+You should see: `priority=65535,ip,nw_src=10.0.0.2 actions=drop` with thousands of dropped packets accumulating!
 
 ---
 
-### Act 4 — Recovery
+### Act 4 — Recovery & Rule Retention
 
-Press `Ctrl+C` inside the xterm h2 window.
+At the Mininet `mininet>` prompt, stop the attack flood:
+```text
+mininet> h2 pkill -9 hping3
+```
+*(Or press `Ctrl+C` if running inside `xterm h2`).*
 
 **What you see on dashboard:**
-- Blue line drops back to ~0.8k PPS baseline
-- Health banner returns to normal when the observed traffic falls below the recovery threshold.
-- `10.0.0.2` remains listed in the Blocked threats table until OVS reports that the DROP rule expired after five minutes without matching traffic.
+- Total incoming line drops back to the clean baseline (~85 pkts/s)
+- Status returns to normal operational mode (green banner)
+- `10.0.0.2` remains listed in the Blocked Devices table with an amber **`RULE RETAINED`** badge until the OpenFlow idle-timeout (300 seconds) expires without matching traffic.
 
 ---
 
@@ -372,6 +458,19 @@ sudo python3 network/topo.py
 
 # Mininet CLI — run legitimate traffic from h1
 h1 bash network/legit_traffic.sh &
+
+# Mininet CLI — launch attack from h2
+h2 bash network/attack_traffic.sh
+
+# Run Comprehensive ML Model Accuracy & Health Audit (Windows / Ubuntu)
+python3 controller/test_model_accuracy.py
+# (or on Windows)
+py controller/test_model_accuracy.py
+
+# Run Automated Unit Test Suite
+python3 -m unittest tests/test_ml_engine.py
+# (or on Windows)
+py -m unittest tests/test_ml_engine.py
 
 # Mininet CLI — open attacker terminal
 xterm h2

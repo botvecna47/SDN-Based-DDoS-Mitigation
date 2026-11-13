@@ -1,0 +1,7 @@
+{
+  "best_model_name": "Decision Tree",
+  "accuracy": 0.9999035943249193,
+  "macro_f1": 0.9998778799729411,
+  "latency_ms": 0.1423853999003768,
+  "selection_timestamp": "2026-10-28 19:04:45"
+}

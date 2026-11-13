@@ -227,7 +227,7 @@ class SimpleMonitor13(app_manager.RyuApp):
             priority = int(stat.priority)
             match = {
                 key: stat.match[key]
-                for key in ('in_port', 'eth_src', 'eth_dst', 'ipv4_src', 'ipv4_dst', 'eth_type')
+                for key in ('in_port', 'eth_src', 'eth_dst', 'ipv4_src', 'ipv4_dst', 'eth_type', 'ip_proto', 'tcp_src', 'tcp_dst', 'udp_src', 'udp_dst')
                 if key in stat.match
             }
             if priority == 65535:
@@ -252,6 +252,9 @@ class SimpleMonitor13(app_manager.RyuApp):
 
             src_ip = stat.match['ipv4_src']
             dst_ip = stat.match['ipv4_dst'] if 'ipv4_dst' in stat.match else None
+            ip_proto = stat.match.get('ip_proto', 17)
+            src_port = stat.match.get('tcp_src', stat.match.get('udp_src', 0))
+            dst_port = stat.match.get('tcp_dst', stat.match.get('udp_dst', 0))
 
             packet_count = stat.packet_count
             byte_count = stat.byte_count
@@ -292,6 +295,9 @@ class SimpleMonitor13(app_manager.RyuApp):
                 'timestamp': current_time,
                 'src_ip': src_ip,
                 'dst_ip': dst_ip,
+                'src_port': src_port,
+                'dst_port': dst_port,
+                'ip_proto': ip_proto,
                 'packet_count': packet_count,
                 'byte_count': byte_count,
                 'duration_sec': duration_sec,
@@ -325,6 +331,7 @@ class SimpleMonitor13(app_manager.RyuApp):
             inference_latency_ms=latest_inference_ms,
             dropped_pps=dropped_pps,
             detection_mode="machine_learning" if self.detector.is_loaded else "threshold_fallback",
+            ml_model_name=self.detector.model_name,
             switch_connected=True,
             last_updated_at=current_time,
             openflow_rules=openflow_rules,
@@ -347,14 +354,9 @@ class SimpleMonitor13(app_manager.RyuApp):
         """Extract features, run through ML model, and mitigate if DDoS detected."""
         src_ip = stats_dict['src_ip']
         if src_ip in self.blocked_ips:
-            return False, 3.1  # Already blocked
+            return False, 0.1  # Already blocked
 
-        is_ddos, inference_ms = self.detector.predict(
-            pps=stats_dict['pps'],
-            bps=stats_dict['bps'],
-            duration_sec=stats_dict['duration_sec'],
-            packet_count=stats_dict['packet_count']
-        )
+        is_ddos, inference_ms = self.detector.predict(stats_dict)
 
         if is_ddos:
             self.logger.warning(f"DDoS Detected from {src_ip}! Pushing drop rule...")

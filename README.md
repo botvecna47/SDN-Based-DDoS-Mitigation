@@ -6,14 +6,77 @@ A comprehensive Software-Defined Networking (SDN) project that detects and mitig
 
 ```mermaid
 flowchart TD
-    subgraph Ubuntu VM [Ubuntu VM - 192.168.8.147]
-        M[Mininet Topo] -->|OpenFlow 1.3| R[Ryu Controller]
-        R -->|Writes via Filelock| SS[(shared_state.json)]
-        F[Flask API] -->|Reads| SS
+    subgraph WindowsHost["🖥️ Windows Host Machine"]
+        RD["⚛️ React Dashboard UI\n(App.tsx · Port 5173)"]
+        Browser["🌐 User Web Browser\n(http://localhost:5173)"]
+        RD <--> Browser
     end
-    subgraph Windows Host
-        RD[React Dashboard] -->|HTTP REST| F
+
+    subgraph UbuntuVM["🐧 Ubuntu Linux Guest VM (192.168.x.x)"]
+        subgraph MininetSandbox["🌐 Mininet Network Sandbox (network/topo.py)"]
+            H1["👤 h1: Legitimate User\n(IP: 10.0.0.1 · MAC: ...01)"]
+            H2["🥷 h2: Malicious Attacker\n(IP: 10.0.0.2 · MAC: ...02)"]
+            H3["🎯 h3: Target Server\n(IP: 10.0.0.3 · iperf UDP:5001)"]
+            S1{{"⚡ s1: Open vSwitch (OVS)\n(OpenFlow 1.3 Datapath)"}}
+            
+            H1 -->|Legitimate UDP Traffic| S1
+            H2 -->|"hping3 Flood Attack"| S1
+            S1 -->|Forwarded Safe Packets| H3
+        end
+
+        subgraph ControlPlane["🧠 Control & Detection Plane"]
+            Ryu["🛡️ Ryu SDN Controller\n(controller/simple_monitor.py · Port 6653)"]
+            ML["🔍 Anomaly Detection Engine\n(Random Forest / PPS > 10k Fallback)"]
+            Mitigation["🚫 OpenFlow Mitigation Engine\n(controller/mitigation.py)"]
+            
+            Ryu <-->|Flow Statistics Request / Reply| S1
+            Ryu -->|Traffic Features| ML
+            ML -->|Attack Alert: 10.0.0.2| Ryu
+            Ryu -->|Trigger Block| Mitigation
+            Mitigation -->|"OFPFlowMod: Priority 65535 DROP"| S1
+        end
+
+        subgraph BackendAPI["🔌 Backend State & API Layer"]
+            StateFile[("📁 shared_state.json\n(Thread-Safe IPC via FileLock)")]
+            Flask["🚀 Flask REST API\n(backend_api/app.py · Port 5000)"]
+            
+            Ryu -->|Atomic State Updates| StateFile
+            Flask -->|Read Telemetry| StateFile
+        end
     end
+
+    RD <-->|"HTTP REST (GET /api/network-stats)\nPolling every 1 second"| Flask
+
+    classDef hostStyle fill:#e0f2fe,stroke:#0284c7,stroke-width:2px,color:#0f172a;
+    classDef attackerStyle fill:#ffe4e6,stroke:#e11d48,stroke-width:2px,color:#0f172a;
+    classDef switchStyle fill:#fef3c7,stroke:#d97706,stroke-width:2px,color:#0f172a;
+    classDef controllerStyle fill:#ede9fe,stroke:#7c3aed,stroke-width:2px,color:#0f172a;
+    classDef storageStyle fill:#f1f5f9,stroke:#475569,stroke-width:2px,color:#0f172a;
+    classDef uiStyle fill:#ecfdf5,stroke:#059669,stroke-width:2px,color:#0f172a;
+
+    class H1,H3 hostStyle;
+    class H2 attackerStyle;
+    class S1 switchStyle;
+    class Ryu,ML,Mitigation controllerStyle;
+    class StateFile storageStyle;
+    class RD,Browser,Flask uiStyle;
+```
+
+### Real-Time Mitigation Flow
+
+```mermaid
+flowchart LR
+    A["🥷 Attacker (h2)\nFloods ~24,000 pkts/s"] -->|Hostile Flood| S["⚡ Switch (s1)"]
+    U["👤 User (h1)\nNormal ~85 pkts/s"] -->|Safe Requests| S
+
+    S -->|1.5s Flow Stats| R["🧠 Ryu Controller"]
+    R -->|Rate > 10k PPS| D{"⚠️ DDoS Detected?"}
+    
+    D -->|YES: Attacker 10.0.0.2| P["🚫 Push Priority 65535 DROP"]
+    P -->|OFPFlowMod| S
+
+    S -.->|10.0.0.2 Blocked at Port| X["❌ 600k Packets DROPPED"]
+    S ===>|10.0.0.1 Forwarded Smoothly| V["🎯 Victim Server (h3)\n100% Online & Protected"]
 ```
 
 ## Quick Start

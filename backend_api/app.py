@@ -89,13 +89,14 @@ def network_stats():
                 "country": host_label,
                 "port": 80,
                 "protocol": "UDP",
-                "reason": "DDoS detected by ML model" if state.get("detection_mode") == "machine_learning" else "DDoS detected by PPS threshold fallback",
+                "reason": f"DDoS detected by {state.get('ml_model_name', 'ML Decision Tree')}" if state.get("detection_mode") == "machine_learning" else "DDoS detected by PPS threshold fallback",
                 "severity": "Critical"
             })
 
         snapshot = {
             "health": "offline" if not switch_connected else ("degraded" if status == "UNDER_ATTACK" else "operational"),
             "detectionMode": state.get("detection_mode", "threshold_fallback"),
+            "mlModelName": state.get("ml_model_name", "CIC-DDoS2019 Decision Tree"),
             # Only the OpenFlow switch connection is observed directly here;
             # host reachability is not verified by the controller.
             "endpointsOnline": 1 if switch_connected else 0,
@@ -106,7 +107,7 @@ def network_stats():
                 "forwardedPps": int(forwarded_pps),
                 "uptimeSec": int(state.get("controller_uptime_sec", 0)),
                 "activeRules": active_flows if switch_connected else 0,
-                "mlLatencyMs": float(state.get("inference_latency_ms", 3.1))
+                "mlLatencyMs": float(state.get("inference_latency_ms", 0.28))
             },
             "traffic": {
                 "ingress": list(history_ingress),
@@ -115,7 +116,7 @@ def network_stats():
             },
             "threats": threats,
             "dropReasons": [
-                {"reason": "ML classifier" if state.get("detection_mode") == "machine_learning" else "PPS threshold fallback", "share": 100},
+                {"reason": state.get("ml_model_name", "ML Decision Tree") if state.get("detection_mode") == "machine_learning" else "PPS threshold fallback", "share": 100},
             ] if threats else []
         }
 

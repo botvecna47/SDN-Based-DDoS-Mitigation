@@ -54,7 +54,50 @@ The system ingests per-flow network statistics from an OpenFlow-enabled virtual 
 
 ## 2. System Overview
 
-### 2.1 Component Diagram (Text Representation)
+### 2.1 Architecture Diagram
+
+```mermaid
+flowchart TD
+    subgraph VM["🐧 Ubuntu Linux Virtual Machine"]
+        subgraph MininetEnv["Mininet Network Sandbox"]
+            H1["👤 h1: Legit Traffic\n(10.0.0.1)"]
+            H2["🥷 h2: DDoS Attacker\n(10.0.0.2)"]
+            H3["🎯 h3: Target Server\n(10.0.0.3)"]
+            S1{{"⚡ s1: OVS Switch\n(OpenFlow 1.3)"}}
+            
+            H1 -->|Safe Traffic| S1
+            H2 -->|High-Rate Flood| S1
+            S1 -->|Forwarded Packets| H3
+        end
+
+        subgraph ControllerStack["Ryu SDN Controller (Port 6653)"]
+            Collector["📊 Flow Stats Collector\n(OFPFlowStatsRequest)"]
+            ML["🧠 Anomaly Classifier\n(Random Forest / PPS Fallback)"]
+            FlowMod["🚫 Mitigation Engine\n(OFPFlowMod DROP)"]
+            
+            Collector -->|Compute PPS & BPS| ML
+            ML -->|DDoS Alert: 10.0.0.2| FlowMod
+        end
+
+        subgraph BackendStack["Backend & IPC Layer"]
+            IPC[("📁 shared_state.json\n(Atomic FileLock)")]
+            Flask["🚀 Flask REST API (Port 5000)\n(/api/network-stats, /api/flow-table)"]
+            Flask <--> IPC
+        end
+
+        S1 <-->|"OpenFlow 1.3 Stats"| Collector
+        FlowMod -->|"Push Priority 65535 DROP"| S1
+        ControllerStack -->|"Write Telemetry State"| IPC
+    end
+
+    subgraph Host["🖥️ Windows Host Machine"]
+        React["⚛️ React Dashboard UI (Port 5173)\nLive Telemetry & Threat Table"]
+    end
+
+    React <-->|"HTTP GET Polling (1s)"| Flask
+```
+
+### 2.2 Component Diagram (Text Representation)
 
 ```
 +------------------------------------------------------------------+
