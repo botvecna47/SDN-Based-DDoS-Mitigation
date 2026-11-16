@@ -160,17 +160,23 @@ class DDoSDetector:
         if src_ip.startswith('10.0.0.'):
             try:
                 last_octet = int(src_ip.split('.')[-1])
-                is_known_botnet = (2 <= last_octet <= 8)
+                # Botnet nodes actively engaging in attack traffic (> 500 PPS, high packet count, or slowloris)
+                is_known_botnet = (2 <= last_octet <= 8 and (pps > 500.0 or packet_count >= 50 or is_slow_dos))
             except ValueError:
                 pass
 
+        # Standard low-rate ICMP ping (proto 1) is harmless diagnostic traffic unless flooded
+        is_icmp_benign = (ip_proto == 1 and pps < 1000.0)
+
         # Inbound classification: Attacker flood, slowloris starvation, or volumetric ingress
         is_attack_profile = (
-            (pps > 5000.0) or
-            (bps > 15_000_000.0) or
-            is_slow_dos or
-            is_known_botnet or
-            bool(stats.get('is_attack', False))
+            not is_icmp_benign and (
+                (pps > 5000.0) or
+                (bps > 15_000_000.0) or
+                is_slow_dos or
+                is_known_botnet or
+                bool(stats.get('is_attack', False))
+            )
         )
         inbound = 1.0 if is_attack_profile else 0.0
 

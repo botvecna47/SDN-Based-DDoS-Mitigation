@@ -294,7 +294,15 @@ function exportCsv(rows: Threat[]) {
 type DemoMode = 'normal' | 'attack' | 'idle' | 'loading' | 'error'
 
 export default function App() {
-  const [source, setSource] = useState<'demo' | 'live'>('demo')
+  const [source, setSource] = useState<'demo' | 'live'>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search)
+      if (params.get('source') === 'demo') return 'demo'
+    } catch {
+      // Fallback
+    }
+    return 'live'
+  })
   const [demoMode, setDemoMode] = useState<DemoMode>('normal')
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null)
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('ready')
