@@ -45,14 +45,14 @@ flowchart TD
             subgraph CascadeEngine["3-Tier Cascading Detection Engine"]
                 T1["Tier 1: CIC-DDoS2019 Decision Tree\n(28 ANOVA Features · 0.18ms Latency)"]
                 T2["Tier 2: Random Forest Fallback"]
-                T3["Tier 3: Rate Limiting (> 10k PPS Fallback)"]
+                T3["Tier 3: Rate Limiting - Above 10k PPS Fallback"]
                 T1 -.->|If Missing| T2
                 T2 -.->|If Missing| T3
             end
             
             Mitigation["🚫 OpenFlow Mitigation Engine\n(controller/mitigation.py)"]
             
-            Ryu <-->|Flow Statistics Request / Reply (1.5s)| S1
+            Ryu <-->|Flow Statistics Polling Every 1.5s| S1
             Ryu -->|Extract L4 Features| CascadeEngine
             CascadeEngine -->|Threat Verdict + Latency| Ryu
             Ryu -->|Trigger Port Block| Mitigation
@@ -68,7 +68,7 @@ flowchart TD
         end
     end
 
-    RD <-->|"HTTP REST (GET /api/network-stats)\nPolling every 1 second"| Flask
+    RD <-->|HTTP REST Polling: GET /api/network-stats| Flask
 
     classDef hostStyle fill:#e0f2fe,stroke:#0284c7,stroke-width:2px,color:#0f172a;
     classDef attackerStyle fill:#ffe4e6,stroke:#e11d48,stroke-width:2px,color:#0f172a;
@@ -92,10 +92,10 @@ flowchart LR
     A["🥷 Attacker Botnet (h2)\nFloods ~24,000 pkts/s"] -->|Hostile Flood| S["⚡ Switch (s1)"]
     U["👤 User (h1)\nNormal ~85 pkts/s"] -->|Safe Requests| S
 
-    S -->|1.5s Flow Stats| R["🧠 Ryu Controller"]
+    S -->|1.5s Flow Statistics Polling| R["🧠 Ryu Controller"]
     R -->|Extract 28 Features| ML{"🤖 Tier-1 Decision Tree"}
     
-    ML -->|Verdict: DDoS (0.18 ms)| P["🚫 Push Priority 65535 DROP"]
+    ML -->|Verdict: DDoS - 0.18ms Latency| P["🚫 Push Priority 65535 DROP"]
     P -->|OFPFlowMod| S
 
     S -.->|10.0.0.2 Blocked at Switch Port| X["❌ Packets Dropped at Wire-Speed"]
