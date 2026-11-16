@@ -2,6 +2,19 @@ import os
 import sys
 import time
 import json
+import subprocess
+from pathlib import Path
+
+# Python 3.9 venv trampoline for host execution compatibility
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+VENV_PYTHON = PROJECT_ROOT / "ryu39_env" / "bin" / "python3"
+
+if sys.version_info >= (3, 10) and VENV_PYTHON.exists() and os.environ.get("VENV_REEXEC") != "1":
+    env = os.environ.copy()
+    env["VENV_REEXEC"] = "1"
+    args = [str(VENV_PYTHON), __file__] + sys.argv[1:]
+    res = subprocess.run(args, env=env)
+    sys.exit(res.returncode)
 
 # Setup import path
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))

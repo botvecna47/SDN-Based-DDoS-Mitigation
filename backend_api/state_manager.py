@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from filelock import FileLock, Timeout
 
 FALLBACK_THRESHOLD_PPS = 10_000
@@ -14,9 +15,10 @@ FALLBACK_THRESHOLD_PPS = 10_000
 STATE_FILE = os.path.join(os.path.dirname(__file__), 'shared_state.json')
 LOCK_FILE = f"{STATE_FILE}.lock"
 
-def initialize_state():
-    """Run this once when the system starts to create the blank state."""
-    default_state = {
+
+def get_default_state():
+    """Default baseline network state dictionary."""
+    return {
         "status": "NORMAL",
         "current_pps": 0,
         "normal_baseline_pps": 0,
@@ -32,7 +34,13 @@ def initialize_state():
         "last_updated_at": 0,
         "openflow_rules": [],
         "timestamp": "",
+        "controller_uptime_sec": 0,
     }
+
+
+def initialize_state():
+    """Run this once when the system starts to create the blank state."""
+    default_state = get_default_state()
     try:
         with FileLock(LOCK_FILE, timeout=2):
             with open(STATE_FILE, 'w') as f:
@@ -40,8 +48,9 @@ def initialize_state():
     except Timeout:
         pass
 
+
 def update_state(**kwargs):
-    """RYU CONTROLLER uses this to push new data."""
+    """RYU CONTROLLER uses this to push new data. Auto-heals corrupted JSON."""
     try:
         with FileLock(LOCK_FILE, timeout=2):
             try:
@@ -51,12 +60,16 @@ def update_state(**kwargs):
                 with open(STATE_FILE, 'w') as f:
                     json.dump(state, f, indent=4)
             except (FileNotFoundError, json.JSONDecodeError):
-                pass # Failsafe if file is missing
+                state = get_default_state()
+                state.update(kwargs)
+                with open(STATE_FILE, 'w') as f:
+                    json.dump(state, f, indent=4)
     except Timeout:
         pass
 
+
 def read_state():
-    """FLASK API uses this to serve data to React."""
+    """FLASK API uses this to serve data to React. Auto-recovers stale lockfiles."""
     try:
         with FileLock(LOCK_FILE, timeout=2):
             try:
@@ -65,4 +78,12 @@ def read_state():
             except (FileNotFoundError, json.JSONDecodeError):
                 return {"error": "State file unavailable"}
     except Timeout:
+        try:
+            if os.path.exists(LOCK_FILE) and (time.time() - os.path.getmtime(LOCK_FILE) > 5.0):
+                os.remove(LOCK_FILE)
+                with FileLock(LOCK_FILE, timeout=1):
+                    with open(STATE_FILE, 'r') as f:
+                        return json.load(f)
+        except Exception:
+            pass
         return {"error": "State file lock timeout"}

@@ -19,10 +19,23 @@ Usage:
 
 import os
 import sys
+import time
 import socket
 import subprocess
 import shutil
 import json
+from pathlib import Path
+
+# Python 3.9 venv trampoline for host execution compatibility
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+VENV_PYTHON = PROJECT_ROOT / "ryu39_env" / "bin" / "python3"
+
+if sys.version_info >= (3, 10) and VENV_PYTHON.exists() and os.environ.get("VENV_REEXEC") != "1":
+    env = os.environ.copy()
+    env["VENV_REEXEC"] = "1"
+    args = [str(VENV_PYTHON), __file__] + sys.argv[1:]
+    res = subprocess.run(args, env=env)
+    sys.exit(res.returncode)
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, os.path.join(BASE_DIR, 'controller'))
@@ -175,18 +188,23 @@ def run_diagnostics():
     import state_manager
     lock_file = state_manager.LOCK_FILE
     if os.path.exists(lock_file):
-        # Check if lockfile is stale (older than 10 seconds)
-        lock_age = time.time() - os.path.getmtime(lock_file)
-        if lock_age > 10:
-            print(f"  [WARN] Stale lockfile detected: {lock_file} (Age: {lock_age:.1f}s)")
+        try:
+            # Test if lock is free and safely remove leftover lockfile
+            with state_manager.FileLock(lock_file, timeout=0.1):
+                try:
+                    os.remove(lock_file)
+                except OSError:
+                    pass
+            print("  [PASS] Cleaned leftover lockfile; IPC state is healthy.")
+            checks_passed += 1
+        except state_manager.Timeout:
+            lock_age = time.time() - os.path.getmtime(lock_file)
+            print(f"  [WARN] Lockfile actively held: {lock_file} (Age: {lock_age:.1f}s)")
             issues.append({
                 "component": "Stale FileLock Detected",
                 "impact": "Flask API or Ryu might timeout reading/writing shared_state.json",
                 "remediation": f"rm -f {lock_file}"
             })
-        else:
-            print("  [PASS] Lockfile is currently active and healthy.")
-            checks_passed += 1
     else:
         print("  [PASS] No orphaned lockfiles found.")
         checks_passed += 1

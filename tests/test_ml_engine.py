@@ -13,6 +13,20 @@ import sys
 import time
 import unittest
 import warnings
+import subprocess
+from pathlib import Path
+
+# Python 3.9 venv trampoline for host execution compatibility
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+VENV_PYTHON = PROJECT_ROOT / "ryu39_env" / "bin" / "python3"
+
+if sys.version_info >= (3, 10) and VENV_PYTHON.exists() and os.environ.get("VENV_REEXEC") != "1":
+    env = os.environ.copy()
+    env["VENV_REEXEC"] = "1"
+    args = [str(VENV_PYTHON), "-m", "unittest"] + [a for a in sys.argv[1:] if a not in ("-m", "unittest")]
+    res = subprocess.run(args, env=env)
+    sys.exit(res.returncode)
+
 import numpy as np
 
 # Suppress sklearn unpickle / feature name warnings for clean test reporting

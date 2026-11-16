@@ -33,8 +33,9 @@ def create_network():
     info('*** Starting network\n')
     net.start()
 
-    info('*** Starting iperf UDP server on h3\n')
+    info('*** Starting iperf UDP and HTTP servers on h3\n')
     h3.cmd('iperf -s -u &')
+    h3.cmd('python3 -m http.server 80 &')
     
     info('*** Bootstrapping MAC learning with pingall\n')
     net.pingAll()
@@ -44,6 +45,8 @@ def create_network():
     CLI(net)
     
     info('*** Stopping network\n')
+    h3.cmd('pkill -f "http.server"')
+    h3.cmd('pkill -f "iperf"')
     net.stop()
 
 if __name__ == '__main__':

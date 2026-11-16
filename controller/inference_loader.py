@@ -6,7 +6,8 @@ import logging
 import warnings
 import numpy as np
 
-warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore")
+warnings.simplefilter("ignore")
 
 try:
     from state_manager import FALLBACK_THRESHOLD_PPS

@@ -27,6 +27,28 @@ def add_no_cache_headers(response):
 history_ingress = collections.deque([0.0]*48, maxlen=48)
 history_dropped = collections.deque([0.0]*48, maxlen=48)
 
+def safe_float(val, default=0.0):
+    try:
+        if val is None:
+            return default
+        f = float(val)
+        if f != f or f == float('inf') or f == float('-inf'):
+            return default
+        return f
+    except (ValueError, TypeError, OverflowError):
+        return default
+
+def safe_int(val, default=0):
+    try:
+        if val is None:
+            return default
+        f = float(val)
+        if f != f or f == float('inf') or f == float('-inf'):
+            return default
+        return int(f)
+    except (ValueError, TypeError, OverflowError):
+        return default
+
 def history_collector():
     """
     Background daemon thread that records traffic rates every 1.0s.
@@ -102,12 +124,12 @@ def network_stats():
             "endpointsOnline": 1 if switch_connected else 0,
             "endpointsTotal": 1,
             "metrics": {
-                "currentPps": int(current_pps),
-                "droppedPps": int(mitigated_pps),
-                "forwardedPps": int(forwarded_pps),
-                "uptimeSec": int(state.get("controller_uptime_sec", 0)),
+                "currentPps": safe_int(current_pps),
+                "droppedPps": safe_int(mitigated_pps),
+                "forwardedPps": safe_int(forwarded_pps),
+                "uptimeSec": safe_int(state.get("controller_uptime_sec", 0)),
                 "activeRules": active_flows if switch_connected else 0,
-                "mlLatencyMs": float(state.get("inference_latency_ms", 0.28))
+                "mlLatencyMs": round(safe_float(state.get("inference_latency_ms", 0.28)), 3)
             },
             "traffic": {
                 "ingress": list(history_ingress),

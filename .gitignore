@@ -18,6 +18,7 @@ __pycache__/
 *.py[cod]
 ryu39_env/
 ryu-env/
+ryu_env/
 backend_api/shared_state.json
 backend_api/shared_state.json.lock
 controller/traffic_dataset.csv
