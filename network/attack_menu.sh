@@ -36,9 +36,10 @@ show_menu() {
     echo "  [7] Stop Attack Traffic             (Halts attacks; retains legitimate stream)"
     echo "  [8] Stop All Traffic                (Halts attacks AND legitimate traffic)"
     echo "  [9] Start Legitimate User Stream    (h1 -> h3 @ ~850 pkts/s baseline)"
+    echo "  [10] Dynamic Mixed Traffic Suite    (3 diverse legitimate users + 6 botnet attackers)"
     echo "  [0] Exit"
     echo ""
-    read -p "Enter choice [0-9]: " choice
+    read -p "Enter choice [0-10]: " choice
 }
 
 ensure_legit_traffic() {
@@ -136,6 +137,10 @@ case_launch() {
             echo "[+] Legitimate user stream (~850 pkts/s) active in background!"
             echo "Inspect the React Dashboard to observe Clean Forwarded traffic green line passing through."
             read -p "Press Enter to return to menu..."
+            ;;
+        10)
+            echo "[*] Launching Dynamic Mixed Traffic Suite (Diverse Legitimate Users + Diverse Botnet)..."
+            python3 "$SCRIPT_DIR/dynamic_traffic_suite.py" --mode botnet
             ;;
         0)
             exit 0
