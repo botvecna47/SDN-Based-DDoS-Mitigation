@@ -189,12 +189,16 @@ SDN-Based-DDoS-Mitigation/
 │   ├── pipeline.py                # Model training, evaluation & metrics logging
 │   └── test_overfitting.py        # K-fold cross-validation & generalization check
 ├── network/
-│   ├── topo.py                    # Mininet topology script (h1, h2-h8 botnet, h3, s1)
-│   └── *.sh                       # Traffic generation scripts (hping3, iperf, slowloris)
+│   ├── topo.py                    # Standard Mininet topology script (h1, h2, h3, s1)
+│   ├── topo_botnet.py             # 8-Host distributed botnet topology (h1, h2/h4-h8, h3)
+│   ├── attack_menu.sh             # Interactive attack launcher (6 attack vectors)
+│   ├── slowloris.py               # Lightweight Slowloris HTTP header starvation script
+│   └── *.sh                       # Traffic generation scripts (hping3, iperf, legit)
 ├── tests/
 │   ├── test_ml_engine.py          # Unit tests for ML inference engine & SLAs
 │   └── test_failure_modes.py      # Negative testing, lock contention & schema validation
 ├── docs/                          # Architecture, PRD, SRS, and evaluation reports
+│   ├── ATTACK_EMULATION_GUIDE.md  # Multi-vector DDoS attack execution & emulation guide
 │   ├── SDN_DDOS_PIPELINE_REPORT.md# Complete ML pipeline evaluation & academic benchmark
 │   ├── presentation/              # 15-Slide academic presentation & PowerPoint (.pptx)
 │   └── visualizations/            # 300 DPI ROC/PR curves, confusion matrices & tree rules
@@ -226,6 +230,7 @@ Full evaluation figures, ROC/PR curves, and confusion matrices are located in [d
 | Document | Description |
 |:---|:---|
 | [Running Guide](RUNNING_GUIDE.md) | Step-by-step startup order, VM network setup, and troubleshooting commands. |
+| [Attack Emulation Guide](docs/ATTACK_EMULATION_GUIDE.md) | How to emulate 6 attack vectors (Volumetric UDP, SYN, Slowloris, ICMP, Botnet). |
 | [ML Pipeline Report](docs/SDN_DDOS_PIPELINE_REPORT.md) | Detailed academic report on CIC-DDoS2019 feature engineering and model training. |
 | [Presentation Slides](docs/presentation/PRESENTATION_SLIDES_15.md) | 15-slide technical presentation deck with speaker notes and UML diagrams. |
 | [Architecture](docs/ARCHITECTURE.md) | In-depth breakdown of system components, threading, and data flow. |
