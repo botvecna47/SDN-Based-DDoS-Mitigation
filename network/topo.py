@@ -41,10 +41,14 @@ def create_network():
     net.pingAll()
     info('*** MAC learning complete. Network is ready.\n')
     
+    info('*** Starting continuous legitimate background user traffic (h1 -> h3 @ ~850 PPS)\n')
+    h1.cmd('iperf -c 10.0.0.3 -u -b 10m -t 86400 &')
+    
     info('*** Running CLI (Type "pingall" to test, or "exit" to quit)\n')
     CLI(net)
     
     info('*** Stopping network\n')
+    h1.cmd('pkill -f "iperf"')
     h3.cmd('pkill -f "http.server"')
     h3.cmd('pkill -f "iperf"')
     net.stop()

@@ -62,9 +62,13 @@ def create_botnet_network():
     info('*** Botnet network is fully initialized and ready.\n')
     info('*** Hosts available: h1 (Legitimate), h3 (Server), and Botnet Nodes: h2, h4, h5, h6, h7, h8\n')
     
+    info('*** Starting continuous legitimate background user traffic (h1 -> h3 @ ~850 PPS)\n')
+    h1.cmd('iperf -c 10.0.0.3 -u -b 10m -t 86400 &')
+    
     CLI(net)
     
     info('*** Stopping network\n')
+    h1.cmd('pkill -f "iperf"')
     h3.cmd('pkill -f "http.server"')
     h3.cmd('pkill -f "iperf"')
     net.stop()

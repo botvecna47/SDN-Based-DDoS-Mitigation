@@ -2,6 +2,7 @@ import os
 import sys
 import time
 import csv
+import logging
 from ryu.base import app_manager
 from ryu.controller import ofp_event
 from ryu.controller.handler import CONFIG_DISPATCHER, MAIN_DISPATCHER, DEAD_DISPATCHER
@@ -47,6 +48,17 @@ class SimpleMonitor13(app_manager.RyuApp):
         self.detector = DDoSDetector(model_path)
 
         self.csv_path = os.path.join(os.path.dirname(__file__), 'traffic_dataset.csv')
+
+        # Dedicated ML detection & reasoning log file
+        logs_dir = os.path.join(os.path.dirname(__file__), '..', 'logs')
+        os.makedirs(logs_dir, exist_ok=True)
+        self.ml_log_file = os.path.join(logs_dir, 'ml_detection.log')
+        self.ml_logger = logging.getLogger('sdn_ml_detection')
+        self.ml_logger.setLevel(logging.INFO)
+        if not self.ml_logger.handlers:
+            fh = logging.FileHandler(self.ml_log_file)
+            fh.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
+            self.ml_logger.addHandler(fh)
 
         # Start the polling thread
         self.monitor_thread = hub.spawn(self._monitor)
@@ -285,8 +297,9 @@ class SimpleMonitor13(app_manager.RyuApp):
                 if dst_ip is None:
                     # DROP rules match only source IP, so retain their rate and
                     # rebuild the block list if Ryu restarted while OVS stayed up.
-                    if stat.priority == 65535:
+                    if stat.priority == 65535 and src_ip != '10.0.0.3':
                         self.blocked_ips.add(src_ip)
+                    self.blocked_ips.discard('10.0.0.3')
                     if src_ip in self.blocked_ips:
                         dropped_pps += pps
                     self.flow_history[flow_key] = (packet_count, byte_count, current_time)
@@ -368,21 +381,46 @@ class SimpleMonitor13(app_manager.RyuApp):
             self.logger.error("Failed to write flow stats to CSV: %s", e)
 
     def _run_inference(self, stats_dict, datapath):
-        """Extract features, run through ML model, and mitigate if DDoS detected."""
+        """Extract features, run through ML model, log detailed reasoning, and mitigate if DDoS detected."""
         src_ip = stats_dict['src_ip']
+        dst_ip = stats_dict.get('dst_ip', '10.0.0.3')
+        pps = stats_dict.get('pps', 0.0)
+        bps = stats_dict.get('bps', 0.0)
+        proto = stats_dict.get('ip_proto', 17)
+        dst_port = stats_dict.get('dst_port', 80)
+
+        # 1. Server Whitelist: Server (10.0.0.3) responses must never be blocked
+        if src_ip == '10.0.0.3':
+            return False, 0.05
+
+        # 2. Already blocked IPs
         if src_ip in self.blocked_ips:
-            return False, 0.1  # Already blocked
+            return False, 0.1
 
         is_ddos, inference_ms = self.detector.predict(stats_dict)
+        reason = getattr(self.detector, 'last_reason', 'Decision Tree Classification')
 
         if is_ddos:
-            self.logger.warning(f"DDoS Detected from {src_ip}! Pushing drop rule...")
+            self.logger.warning(f"DDoS Detected from {src_ip}! Reasoning: {reason}")
+            self.ml_logger.warning(
+                f"[ATTACK DETECTED] src={src_ip} -> dst={dst_ip}:{dst_port} | Proto={proto} | "
+                f"Rate={pps:,.1f} PPS ({bps/1e6:.2f} Mbps) | Latency={inference_ms:.2f}ms | "
+                f"Reason: {reason} | Action: PUSH DROP RULE (Priority 65535, Idle Timeout 300s)"
+            )
             push_drop_rule(datapath, src_ip)
             self.blocked_ips.add(src_ip)
             # Immediately write UNDER_ATTACK status so Flask picks it up on next poll
             # without waiting for the next 1.5s flow stats cycle
             update_state(status="UNDER_ATTACK", blocked_ips=list(self.blocked_ips), inference_latency_ms=inference_ms)
             return True, inference_ms
+        else:
+            # Log verified legitimate traffic passing through
+            if pps > 5:
+                self.ml_logger.info(
+                    f"[BENIGN TRAFFIC] src={src_ip} -> dst={dst_ip}:{dst_port} | Proto={proto} | "
+                    f"Rate={pps:,.1f} PPS ({bps/1e6:.2f} Mbps) | Latency={inference_ms:.2f}ms | "
+                    f"Reason: {reason} | Action: ALLOW & FORWARD (Priority 10)"
+                )
 
         return False, inference_ms
 

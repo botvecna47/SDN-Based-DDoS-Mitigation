@@ -5,7 +5,21 @@ import os
 import time
 import collections
 import threading
+import logging
 from state_manager import FALLBACK_THRESHOLD_PPS, read_state, initialize_state
+
+# Setup dedicated Backend API logger
+LOGS_DIR = os.path.join(os.path.dirname(__file__), '..', 'logs')
+os.makedirs(LOGS_DIR, exist_ok=True)
+BACKEND_LOG_PATH = os.path.join(LOGS_DIR, 'backend.log')
+backend_logger = logging.getLogger('backend_api')
+backend_logger.setLevel(logging.INFO)
+if not backend_logger.handlers:
+    bh = logging.FileHandler(BACKEND_LOG_PATH)
+    bh.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
+    backend_logger.addHandler(bh)
+
+backend_logger.info("SDN DDoS Backend API initializing...")
 
 app = Flask(__name__)
 CORS(app, origins="*")   # Allow all origins for local demo
@@ -104,8 +118,24 @@ def network_stats():
         threats = []
         for blocked in blocked_ips:
             ip_val = blocked if isinstance(blocked, str) else blocked.get("ip", "Unknown")
-            # Map known Mininet IPs to host labels
-            host_label = "h2 (Attacker Host)" if ip_val == "10.0.0.2" else ("h1 (Legitimate User)" if ip_val == "10.0.0.1" else ("h3 (Target Server)" if ip_val == "10.0.0.3" else "Mininet Host"))
+            if ip_val == "10.0.0.3":
+                continue  # Never display the protected target server as an attacker
+            if ip_val == "10.0.0.2":
+                host_label = "h2 (Attacker Host)"
+            elif ip_val.startswith("10.0.0."):
+                try:
+                    octet = int(ip_val.split(".")[-1])
+                    if 4 <= octet <= 8:
+                        host_label = f"h{octet} (Botnet Attacker)"
+                    elif octet == 1:
+                        host_label = "h1 (Legitimate User)"
+                    else:
+                        host_label = f"Host ({ip_val})"
+                except ValueError:
+                    host_label = "Mininet Host"
+            else:
+                host_label = f"Host ({ip_val})"
+
             threats.append({
                 "ip": ip_val,
                 "country": host_label,
@@ -141,6 +171,17 @@ def network_stats():
                 {"reason": state.get("ml_model_name", "ML Decision Tree") if state.get("detection_mode") == "machine_learning" else "PPS threshold fallback", "share": 100},
             ] if threats else []
         }
+
+        # Log system state changes to logs/backend.log
+        health_state = snapshot["health"]
+        global last_logged_health
+        if 'last_logged_health' not in globals() or last_logged_health != health_state:
+            last_logged_health = health_state
+            backend_logger.info(
+                f"[STATE CHANGE] Health: {health_state.upper()} | Controller Status: {status} | "
+                f"Ingress: {safe_int(current_pps):,} PPS | Dropped: {safe_int(mitigated_pps):,} PPS | "
+                f"Clean Forwarded: {safe_int(forwarded_pps):,} PPS | Active Threats: {len(threats)}"
+            )
 
         response = make_response(jsonify(snapshot))
         return add_no_cache_headers(response)
