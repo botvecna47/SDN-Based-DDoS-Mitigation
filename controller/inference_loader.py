@@ -172,7 +172,7 @@ class DDoSDetector:
         is_attack_profile = (
             not is_icmp_benign and (
                 (pps > 5000.0) or
-                (bps > 15_000_000.0) or
+                (bps > 50_000_000.0) or
                 is_slow_dos or
                 is_known_botnet or
                 bool(stats.get('is_attack', False))

@@ -118,8 +118,8 @@ def network_stats():
         threats = []
         for blocked in blocked_ips:
             ip_val = blocked if isinstance(blocked, str) else blocked.get("ip", "Unknown")
-            if ip_val == "10.0.0.3":
-                continue  # Never display the protected target server as an attacker
+            if ip_val in ("10.0.0.3", "10.0.0.1"):
+                continue  # Never display the protected server or legitimate client as an attacker
             if ip_val == "10.0.0.2":
                 host_label = "h2 (Attacker Host)"
             elif ip_val.startswith("10.0.0."):

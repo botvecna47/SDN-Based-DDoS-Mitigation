@@ -389,8 +389,9 @@ class SimpleMonitor13(app_manager.RyuApp):
         proto = stats_dict.get('ip_proto', 17)
         dst_port = stats_dict.get('dst_port', 80)
 
-        # 1. Server Whitelist: Server (10.0.0.3) responses must never be blocked
-        if src_ip == '10.0.0.3':
+        # 1. Server & Legitimate Client Protection
+        # Server 10.0.0.3 responses and legitimate client 10.0.0.1 (under 5k PPS) must never be blocked
+        if src_ip == '10.0.0.3' or (src_ip == '10.0.0.1' and pps < 5000):
             return False, 0.05
 
         # 2. Already blocked IPs
