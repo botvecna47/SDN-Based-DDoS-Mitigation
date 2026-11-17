@@ -31,9 +31,18 @@ export type Snapshot = {
   dropReasons: { reason: string; share: number }[]
 }
 
-// Use .env variable if it exists, otherwise fallback to your specific VM IP
+// Automatically adapt backend endpoint to the current browser host or .env
 const envUrl = import.meta.env.VITE_DEFENSE_API_URL as string | undefined
-export const endpoint = envUrl || "http://192.168.8.147:5000/api/network-stats"
+
+export function getEndpoint(): string {
+  if (typeof window !== 'undefined' && window.location?.hostname) {
+    // If running in browser, connect to port 5000 on the same machine/IP
+    return `http://${window.location.hostname}:5000/api/network-stats`
+  }
+  return envUrl || "http://localhost:5000/api/network-stats"
+}
+
+export const endpoint = getEndpoint()
 
 // Baseline legitimate traffic in thousands of PPS (~0.7 to 0.9k PPS = 700-900 packets/sec)
 export const baseIngress = [

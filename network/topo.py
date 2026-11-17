@@ -1,12 +1,22 @@
 #!/usr/bin/env python3
+import os
 from mininet.net import Mininet
 from mininet.node import RemoteController, OVSKernelSwitch
 from mininet.cli import CLI
 from mininet.log import setLogLevel, info
-import os
+
+def cleanup_stale():
+    """Removes stale veth interfaces and switch bridges to prevent RTNETLINK File exists errors."""
+    info('*** Auto-cleaning stale virtual interfaces and switch bridges...\n')
+    os.system("ovs-vsctl --if-exists del-br s1 2>/dev/null")
+    os.system("ip link show | grep -oE '(s1-eth[0-9]+|h[0-9]+-eth[0-9]+)' | xargs -r -n 1 ip link delete 2>/dev/null")
+    os.system("pkill -9 -f 'iperf -s' 2>/dev/null")
+    os.system("pkill -9 -f 'iperf -c' 2>/dev/null")
+    os.system("pkill -9 -f 'http.server 80' 2>/dev/null")
 
 def create_network():
     setLogLevel('info')
+    cleanup_stale()
     
     # Ryu runs in the same Ubuntu VM by default. Override only if it runs elsewhere.
     CONTROLLER_IP = os.environ.get('CONTROLLER_IP', '127.0.0.1')
@@ -44,14 +54,16 @@ def create_network():
     info('*** Starting continuous legitimate background user traffic (h1 -> h3 @ ~850 PPS)\n')
     h1.cmd('iperf -c 10.0.0.3 -u -b 10m -t 86400 &')
     
-    info('*** Running CLI (Type "pingall" to test, or "exit" to quit)\n')
-    CLI(net)
-    
-    info('*** Stopping network\n')
-    h1.cmd('pkill -f "iperf"')
-    h3.cmd('pkill -f "http.server"')
-    h3.cmd('pkill -f "iperf"')
-    net.stop()
+    try:
+        info('*** Running CLI (Type "pingall" to test, or "exit" to quit)\n')
+        CLI(net)
+    finally:
+        info('*** Stopping network\n')
+        h1.cmd('pkill -f "iperf" 2>/dev/null')
+        h3.cmd('pkill -f "http.server" 2>/dev/null')
+        h3.cmd('pkill -f "iperf" 2>/dev/null')
+        net.stop()
+        cleanup_stale()
 
 if __name__ == '__main__':
     create_network()

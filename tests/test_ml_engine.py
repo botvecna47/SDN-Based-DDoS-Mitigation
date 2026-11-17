@@ -46,6 +46,8 @@ class TestMLEngine(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.detector = DDoSDetector()
+        # Warm up NumPy/scikit-learn runtime caches
+        cls.detector.predict(pps=100.0, bps=80000.0, duration_sec=1.0, packet_count=100)
 
     # -------------------------------------------------------------
     # 1. Model Initialization & Tier Checks
