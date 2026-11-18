@@ -2,7 +2,8 @@
 
 > **Last updated: 2026-11-18**
 > The root `src/` dashboard starts in Demo mode; switch to Live after the API and Mininet switch are reporting.
-> **Current VM IP: `171.171.1.253`** (verify anytime with `hostname -I`).
+> **Current VM IP: `10.1.250.237`** (verify anytime with `hostname -I`).
+> *Note: The React dashboard automatically detects your current host IP (`window.location.hostname`), so no manual IP editing is needed.*
 > **Always `git pull` on Ubuntu before starting a session.**
 
 ---
@@ -214,21 +215,21 @@ curl http://171.171.1.253:5000/api/health
 
 Choose between the **10-Host Botnet Topology** (recommended for multi-IP and mixed traffic demonstration) or the **3-Host Classic Topology**:
 
-#### Option A: 10-Host Botnet Topology (Full Capability)
+#### Option A: 10-Host Botnet Topology (Full Capability & Hands-Free Attack)
 ```bash
 # Clean previous state (mandatory)
 sudo mn -c
 
-# Launch the 10-host botnet topology
+# Method 1: Boot network AND immediately start all 6 attack vectors (Recommended):
+sudo python3 network/topo_botnet.py --attack
+
+# Method 2: Boot network into interactive CLI:
 sudo python3 network/topo_botnet.py
 ```
 
-This spins up:
-- Protected Target: `h3` (`10.0.0.3`) running multithreaded HTTP (:80, :8080), iperf UDP (:5001), and DNS (:53)
-- Pure Legitimate Clients: `h1` (:5001 UDP), `h11` (:80 HTTP), `h12` (:53 DNS)
-- Attack & Mixed Nodes: `h2` (UDP flood + legit :5001), `h4` (SYN flood + legit :53), `h5` (Slowloris), `h6` (ICMP flood), `h7` (UDP :8080), `h8` (Pulsing wave)
+When started with `--attack`, Mininet boots in < 1 second, launches the multi-threaded HTTP/UDP target server `h3`, initializes legitimate background users (`h1`, `h11`, `h12`), and automatically unleashes the 6 distinct DDoS attack vectors with same-IP mixed traffic on `h2` and `h4`.
 
-Inside the `botnet>` CLI, you can directly launch attacks or test:
+Inside the interactive `mininet-botnet>` CLI (if running Method 2), you can run custom commands:
 ```text
 botnet> botnet       # Launches all attackers with distinct rates & mixed traffic
 botnet> legit        # Spawns baseline legitimate user traffic (~1,315 pkts/s)
