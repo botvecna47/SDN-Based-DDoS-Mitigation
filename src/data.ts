@@ -66,12 +66,13 @@ export type Snapshot = {
 const envUrl = import.meta.env.VITE_DEFENSE_API_URL as string | undefined
 
 export function getEndpoint(): string {
+  if (typeof window !== 'undefined' && window.location?.hostname) {
+    // If running in browser, connect to port 5000 on the same machine/IP the page was loaded from.
+    // This guarantees live mode keeps working seamlessly even if DHCP renews the VM's IP address!
+    return `http://${window.location.hostname}:5000/api/network-stats`
+  }
   if (envUrl && envUrl.trim()) {
     return envUrl.trim()
-  }
-  if (typeof window !== 'undefined' && window.location?.hostname) {
-    // If running in browser and no envUrl set, connect to port 5000 on the same machine/IP
-    return `http://${window.location.hostname}:5000/api/network-stats`
   }
   return "http://localhost:5000/api/network-stats"
 }
