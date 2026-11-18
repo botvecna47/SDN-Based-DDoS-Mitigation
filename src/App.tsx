@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { demoSnapshot, endpoint, fetchSnapshot } from './data'
-import type { Snapshot, Threat, IpTrafficEntry, FlowDetail } from './data'
+import type { Snapshot, IpTrafficEntry } from './data'
 
 type IconName =
   | 'shield'
@@ -140,7 +140,7 @@ function TrafficChart({
           {[0, 0.25, 0.5, 0.75, 1].map(fraction => (
             <g key={fraction}>
               <line x1="45" x2="980" y1={220 - fraction * 190} y2={220 - fraction * 190} stroke="#f1f5f9" strokeWidth="1.2" />
-              <text x="0" y={224 - fraction * 190} fill="#94a3b8" fontSize="12" className="mono">{Math.round(fraction * ceiling)}k</text>
+              <text x="0" y={224 - fraction * 190} fill="#94a3b8" fontSize="12" className="mono tabular-nums">{Math.round(fraction * ceiling)}k</text>
             </g>
           ))}
 
@@ -186,35 +186,35 @@ function TrafficChart({
             }}
           >
             <div className="flex items-center justify-between border-b border-slate-700/80 pb-1.5 text-xs text-slate-400">
-              <span className="mono">{ingress.length - 1 - activeHover}s ago</span>
+              <span className="mono tabular-nums">{ingress.length - 1 - activeHover}s ago</span>
               <span className="font-semibold text-slate-300">{source === 'demo' ? 'Simulation Step' : 'Switch s1 Telemetry'}</span>
             </div>
             <div className="mt-2.5 space-y-1.5 text-xs sm:text-sm">
               <div className="flex items-center justify-between gap-5">
                 <span className="flex items-center gap-1.5 text-blue-400 font-medium">
-                  <span className="h-2 w-2 rounded-full bg-blue-500" /> Total Incoming:
+                  <span className="size-2 rounded-full bg-blue-500" /> Total Incoming:
                 </span>
-                <span className="font-bold mono text-white">{hoverIngressPps.toLocaleString()} pkts/s</span>
+                <span className="font-bold mono tabular-nums text-white">{hoverIngressPps.toLocaleString()} pkts/s</span>
               </div>
               <div className="flex items-center justify-between gap-5">
                 <span className="flex items-center gap-1.5 text-rose-400 font-medium">
-                  <span className="h-2 w-2 rounded-full bg-rose-500" /> Blocked / Dropped:
+                  <span className="size-2 rounded-full bg-rose-500" /> Blocked / Dropped:
                 </span>
-                <span className="font-bold mono text-rose-300">{hoverDroppedPps.toLocaleString()} pkts/s</span>
+                <span className="font-bold mono tabular-nums text-rose-300">{hoverDroppedPps.toLocaleString()} pkts/s</span>
               </div>
               <div className="flex items-center justify-between gap-5">
                 <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500" /> Clean Forwarded:
+                  <span className="size-2 rounded-full bg-emerald-500" /> Clean Forwarded:
                 </span>
-                <span className="font-bold mono text-emerald-300">{hoverForwardedPps.toLocaleString()} pkts/s</span>
+                <span className="font-bold mono tabular-nums text-emerald-300">{hoverForwardedPps.toLocaleString()} pkts/s</span>
               </div>
-              <div className="mt-2 border-t border-slate-700/60 pt-1.5 text-[11px] text-slate-400 mono text-center">
+              <div className="mt-2 border-t border-slate-700/60 pt-1.5 text-[11px] text-slate-400 mono tabular-nums text-center">
                 Total ({hoverIngressPps.toLocaleString()}) = Blocked ({hoverDroppedPps.toLocaleString()}) + Clean ({hoverForwardedPps.toLocaleString()})
               </div>
               {hoverDroppedPps > 0 && (
                 <div className="flex items-center justify-between text-xs text-slate-300">
                   <span>Mitigation Efficiency:</span>
-                  <span className="font-bold text-rose-400 mono">{hoverDropPercent}% dropped</span>
+                  <span className="font-bold text-rose-400 mono tabular-nums">{hoverDropPercent}% dropped</span>
                 </div>
               )}
             </div>
@@ -223,7 +223,7 @@ function TrafficChart({
       </div>
 
       {/* Timeline Labels */}
-      <div className="ml-[4.5%] flex justify-between pt-3 text-xs sm:text-sm font-medium text-slate-500 mono">
+      <div className="ml-[4.5%] flex justify-between pt-3 text-xs sm:text-sm font-medium text-slate-500 mono tabular-nums">
         {timelineLabels.map((label, idx) => (
           <span key={label} className={idx % 2 === 1 ? 'hidden sm:inline' : ''}>{label}</span>
         ))}
@@ -258,18 +258,18 @@ function MetricCard({
   return (
     <div className="panel-card p-6 sm:p-7 flex flex-col justify-between">
       <div className="flex items-center justify-between gap-2">
-        <div className="text-xs sm:text-sm font-semibold uppercase tracking-wider text-slate-500">{label}</div>
+        <div className="text-xs sm:text-sm font-semibold uppercase tracking-wider text-slate-500 text-balance">{label}</div>
         {badge && (
-          <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold border ${badgeStyles[badgeType]}`}>
+          <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold border tabular-nums ${badgeStyles[badgeType]}`}>
             {badge}
           </span>
         )}
       </div>
       <div className="mt-3 flex items-baseline gap-2">
-        <span className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 mono">{value}</span>
+        <span className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 mono tabular-nums">{value}</span>
         {unit && <span className="text-sm font-semibold text-slate-500">{unit}</span>}
       </div>
-      <div className="mt-3 text-xs sm:text-sm text-slate-500 leading-normal">{detail}</div>
+      <div className="mt-3 text-xs sm:text-sm text-slate-500 leading-normal text-pretty">{detail}</div>
     </div>
   )
 }
@@ -318,7 +318,6 @@ export default function App() {
   const [retry, setRetry] = useState(0)
   const [streaming, setStreaming] = useState(true)
   const [search, setSearch] = useState('')
-  const [severity, setSeverity] = useState('All severity')
   const [tableFilter, setTableFilter] = useState<'all' | 'blocked_mixed' | 'legit'>('all')
   const [activeNav, setActiveNav] = useState('Overview')
   const [mobileMenu, setMobileMenu] = useState(false)
@@ -525,10 +524,6 @@ export default function App() {
       if (!isPureLegit) return false
     }
 
-    if (severity !== 'All severity' && row.severity !== severity) {
-      return false
-    }
-
     if (search.trim()) {
       const q = search.toLowerCase()
       const searchStr = `${row.ip} ${row.hostLabel} ${row.mac || ''} ${row.primaryReason || ''} ${row.status} ${row.allowedFlows.map(f => `${f.protocol} ${f.dstPort}`).join(' ')} ${row.blockedFlows.map(f => `${f.protocol} ${f.dstPort} ${f.attackType || ''}`).join(' ')}`.toLowerCase()
@@ -551,7 +546,15 @@ export default function App() {
   ]
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800">
+    <div className="min-h-dvh bg-slate-50 text-slate-800">
+      {/* Skip to Main Content Link for Keyboard Accessibility */}
+      <a
+        href="#overview"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:rounded-lg focus:bg-slate-900 focus:px-4 focus:py-2.5 focus:text-sm focus:font-semibold focus:text-white focus:shadow-xl focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
+      >
+        Skip to main content
+      </a>
+
       {/* Mobile Backdrop */}
       {mobileMenu && (
         <button
@@ -565,12 +568,12 @@ export default function App() {
       <aside className={`fixed inset-y-0 left-0 z-40 flex w-[265px] flex-col border-r border-slate-200 bg-white px-6 py-7 transition-transform duration-200 lg:translate-x-0 ${mobileMenu ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-900 text-white">
+            <span className="flex size-8 items-center justify-center rounded-lg bg-slate-900 text-white">
               <Icon name="shield" size={17} />
             </span>
             <span className="text-lg font-bold tracking-tight text-slate-900">Network Defense</span>
           </div>
-          <button className="text-slate-400 hover:text-slate-600 lg:hidden" onClick={() => setMobileMenu(false)} aria-label="Close menu">
+          <button className="flex size-8 items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 lg:hidden" onClick={() => setMobileMenu(false)} aria-label="Close menu">
             <Icon name="close" size={20} />
           </button>
         </div>
@@ -585,8 +588,9 @@ export default function App() {
               className={`flex items-center justify-between rounded-xl px-4 py-3 text-sm sm:text-base font-medium transition-colors ${activeNav === item.label ? 'bg-slate-100 text-slate-900 font-semibold' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
             >
               <span>{item.label}</span>
-              {item.label === 'Blocked Devices' && data && data.threats.length > 0 && (
-                <span className="rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-bold text-rose-700">
+              {item.label === 'Per-IP Defense' && data && data.threats.length > 0 && (
+                <span className="rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-bold text-rose-700 tabular-nums">
+                  <span className="sr-only">Active threats: </span>
                   {data.threats.length}
                 </span>
               )}
@@ -597,7 +601,7 @@ export default function App() {
         {/* Connection Status Card */}
         <div className="mt-auto rounded-xl border border-slate-200 bg-slate-50 p-4">
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-            <span className={`h-2.5 w-2.5 rounded-full ${source === 'live' ? 'bg-emerald-500' : 'bg-blue-500'}`} />
+            <span className={`size-2.5 rounded-full ${source === 'live' ? 'bg-emerald-500' : 'bg-blue-500'}`} />
             {source === 'live' ? 'Connected to Controller' : 'Interactive Demo Mode'}
           </div>
           <div className="mt-1 text-xs text-slate-500">
@@ -607,11 +611,11 @@ export default function App() {
       </aside>
 
       {/* Main Content Area */}
-      <div className="min-h-screen lg:pl-[265px]">
+      <div className="min-h-dvh lg:pl-[265px]">
         {/* Top Header Bar */}
         <header className="sticky top-0 z-20 flex min-h-[70px] items-center justify-between border-b border-slate-200 bg-white/95 px-6 sm:px-10 backdrop-blur-sm">
           <div className="flex items-center gap-3">
-            <button className="rounded p-1.5 text-slate-600 lg:hidden" aria-label="Open menu" onClick={() => setMobileMenu(true)}>
+            <button className="flex size-9 items-center justify-center rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 lg:hidden" aria-label="Open menu" onClick={() => setMobileMenu(true)}>
               <Icon name="menu" size={22} />
             </button>
             <span className="text-sm font-medium text-slate-400">Mininet Network <span className="mx-1.5">/</span></span>
@@ -623,14 +627,14 @@ export default function App() {
             <div className="flex items-center rounded-lg border border-slate-200 bg-slate-100/90 p-0.5 text-xs sm:text-sm font-medium">
               <button
                 onClick={() => setSource('demo')}
-                className={`rounded-md px-3.5 py-1.5 transition-colors ${source === 'demo' ? 'bg-white text-slate-900 shadow-sm font-semibold' : 'text-slate-500 hover:text-slate-800'}`}
+                className={`rounded-md px-3.5 py-1.5 transition-all enabled:active:scale-[0.97] motion-reduce:enabled:active:scale-100 ${source === 'demo' ? 'bg-white text-slate-900 shadow-sm font-semibold' : 'text-slate-500 hover:text-slate-800'}`}
               >
                 Demo
               </button>
               <button
                 onClick={() => { setLoadState('loading'); setSource('live'); setStreaming(true) }}
                 disabled={!endpoint}
-                className={`rounded-md px-3.5 py-1.5 transition-colors ${source === 'live' ? 'bg-white text-slate-900 shadow-sm font-semibold' : 'text-slate-500 hover:text-slate-800'}`}
+                className={`rounded-md px-3.5 py-1.5 transition-all enabled:active:scale-[0.97] motion-reduce:enabled:active:scale-100 ${source === 'live' ? 'bg-white text-slate-900 shadow-sm font-semibold' : 'text-slate-500 hover:text-slate-800'}`}
               >
                 Live
               </button>
@@ -641,7 +645,7 @@ export default function App() {
               <>
                 <button
                   onClick={toggleDemoAttack}
-                  className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs sm:text-sm font-semibold shadow-sm transition-all ${
+                  className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs sm:text-sm font-semibold shadow-sm transition-all enabled:active:scale-[0.97] motion-reduce:enabled:active:scale-100 ${
                     isDemoAttacking
                       ? 'bg-rose-600 text-white hover:bg-rose-700 shadow-rose-200'
                       : 'bg-slate-900 text-white hover:bg-slate-800'
@@ -654,8 +658,9 @@ export default function App() {
                 {hasDemoRetainedThreat && (
                   <button
                     onClick={resetDemoSimulation}
-                    className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all enabled:active:scale-[0.97] motion-reduce:enabled:active:scale-100"
                     title="Clear history and reset to calm baseline"
+                    aria-label="Clear attack history and reset to calm baseline"
                   >
                     <Icon name="trash" size={14} />
                     <span>Clear</span>
@@ -671,10 +676,10 @@ export default function App() {
           {/* Main Title Section */}
           <div className="flex flex-wrap items-end justify-between gap-5">
             <div>
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-slate-900">
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-slate-900 text-balance">
                 Network Traffic &amp; DDoS Defense
               </h1>
-              <p className="mt-2.5 text-base sm:text-lg text-slate-600 max-w-3xl leading-relaxed">
+              <p className="mt-2.5 text-base sm:text-lg text-slate-600 max-w-3xl leading-relaxed text-pretty">
                 {source === 'demo'
                   ? 'Interactive simulation of OpenFlow packet monitoring, automatic anomaly detection, and instant traffic mitigation.'
                   : 'Live telemetry streamed directly from Ryu SDN controller and Open vSwitch switch s1 in Mininet.'}
@@ -738,7 +743,7 @@ export default function App() {
               }`}>
                 <div>
                   <div className="flex items-center gap-2.5">
-                    <span className={`h-3 w-3 rounded-full ${underAttack ? 'bg-rose-500 animate-ping' : offline ? 'bg-slate-400' : isThreatBlocked ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                    <span className={`size-3 rounded-full ${underAttack ? 'bg-rose-500 animate-ping' : offline ? 'bg-slate-400' : isThreatBlocked ? 'bg-amber-500' : 'bg-emerald-500'}`} />
                     <span className={`text-xs sm:text-sm font-bold uppercase tracking-wider ${underAttack ? 'text-rose-700' : offline ? 'text-slate-600' : isThreatBlocked ? 'text-amber-800' : 'text-emerald-700'}`}>
                       {underAttack
                         ? 'DDoS Attack Detected · Autonomous Mitigation Active'
@@ -751,7 +756,7 @@ export default function App() {
                               : 'Network Operating Normally'}
                     </span>
                   </div>
-                  <h2 className="mt-2 text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
+                  <h2 className="mt-2 text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 text-balance">
                     {underAttack
                       ? 'Malicious Traffic Intercepted & Being Dropped'
                       : offline
@@ -762,7 +767,7 @@ export default function App() {
                             ? 'Waiting for Network Traffic'
                             : 'All Network Flows Safe & Verified'}
                   </h2>
-                  <p className="mt-2 max-w-3xl text-sm sm:text-base text-slate-600 leading-relaxed">
+                  <p className="mt-2 max-w-3xl text-sm sm:text-base text-slate-600 leading-relaxed text-pretty">
                     {underAttack
                       ? 'High-volume packet flood detected from host h2 (10.0.0.2). Open vSwitch s1 has installed a Priority 65535 DROP rule. Malicious packets are discarded at the switch port while legitimate user h1 traffic continues unaffected.'
                       : isThreatBlocked
@@ -839,15 +844,15 @@ export default function App() {
                 <div className="flex flex-wrap items-center justify-between gap-5 border-b border-slate-100 pb-6">
                   <div>
                     <div className="flex items-center gap-3">
-                      <h2 className="text-lg sm:text-xl font-bold text-slate-900">
+                      <h2 className="text-lg sm:text-xl font-bold text-slate-900 text-balance">
                         {source === 'demo' ? 'Real-Time Network Traffic Stream' : 'Live Network Traffic Stream'}
                       </h2>
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 border border-emerald-200">
-                        <span className={`h-2 w-2 rounded-full bg-emerald-500 ${streaming ? 'live-dot' : ''}`} />
+                        <span className={`size-2 rounded-full bg-emerald-500 ${streaming ? 'live-dot' : ''}`} />
                         {streaming ? 'Live Stream Active' : 'Paused'}
                       </span>
                     </div>
-                    <p className="mt-1.5 text-sm sm:text-base text-slate-500">
+                    <p className="mt-1.5 text-sm sm:text-base text-slate-500 text-pretty">
                       Comparing total incoming packets (Ingress) against malicious packets dropped (Blocked) and legitimate packets safely delivered (Clean Forwarded).
                     </p>
                   </div>
@@ -855,27 +860,27 @@ export default function App() {
                   {/* Real-time Numeric Stat Pills */}
                   <div className="flex flex-wrap items-center gap-3">
                     <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-1.5 text-xs sm:text-sm font-semibold text-blue-800 border border-blue-200">
-                      <span className="h-2.5 w-2.5 rounded-full bg-blue-600" />
+                      <span className="size-2.5 rounded-full bg-blue-600" />
                       <span>Incoming:</span>
-                      <span className="mono font-bold">{currentIngressPps.toLocaleString()} pkts/s</span>
+                      <span className="mono tabular-nums font-bold">{currentIngressPps.toLocaleString()} pkts/s</span>
                     </div>
 
                     <div className="flex items-center gap-2 rounded-lg bg-rose-50 px-3 py-1.5 text-xs sm:text-sm font-semibold text-rose-800 border border-rose-200">
-                      <span className="h-2.5 w-2.5 rounded-full bg-rose-600" />
+                      <span className="size-2.5 rounded-full bg-rose-600" />
                       <span>Blocked:</span>
-                      <span className="mono font-bold">{currentDroppedPps.toLocaleString()} pkts/s</span>
+                      <span className="mono tabular-nums font-bold">{currentDroppedPps.toLocaleString()} pkts/s</span>
                     </div>
 
                     <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-1.5 text-xs sm:text-sm font-semibold text-emerald-800 border border-emerald-200">
-                      <span className="h-2.5 w-2.5 rounded-full bg-emerald-600" />
+                      <span className="size-2.5 rounded-full bg-emerald-600" />
                       <span>Clean Passed:</span>
-                      <span className="mono font-bold">{currentForwardedPps.toLocaleString()} pkts/s</span>
+                      <span className="mono tabular-nums font-bold">{currentForwardedPps.toLocaleString()} pkts/s</span>
                     </div>
 
                     <button
                       onClick={() => setStreaming(!streaming)}
-                      aria-label={streaming ? 'Pause graph' : 'Resume graph'}
-                      className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+                      aria-label={streaming ? 'Pause graph streaming' : 'Resume graph streaming'}
+                      className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all enabled:active:scale-[0.97] motion-reduce:enabled:active:scale-100"
                       title={streaming ? 'Pause graph' : 'Resume graph'}
                     >
                       <Icon name={streaming ? 'pause' : 'play'} size={15} />
@@ -887,19 +892,19 @@ export default function App() {
                 <div className="mt-4 flex flex-wrap items-center justify-between text-xs sm:text-sm text-slate-500">
                   <div className="flex flex-wrap items-center gap-4">
                     <span className="flex items-center gap-1.5">
-                      <span className="h-2.5 w-2.5 rounded-full bg-blue-600" /> Total Ingress (Blue)
+                      <span className="size-2.5 rounded-full bg-blue-600" /> Total Ingress (Blue)
                     </span>
                     <span className="flex items-center gap-1.5">
-                      <span className="h-2.5 w-2.5 rounded-full bg-rose-600" /> Blocked Traffic (Red)
+                      <span className="size-2.5 rounded-full bg-rose-600" /> Blocked Traffic (Red)
                     </span>
                     <span className="flex items-center gap-1.5">
-                      <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> Clean Throughput (Green)
+                      <span className="size-2.5 rounded-full bg-emerald-500" /> Clean Throughput (Green)
                     </span>
                     <span className="flex items-center gap-1.5">
                       <span className="h-0.5 w-4 bg-orange-400" /> Anomaly Threshold ({Math.round(data.traffic.threshold * 1000).toLocaleString()} pkts/s)
                     </span>
                   </div>
-                  <div className="mono font-medium text-slate-400">
+                  <div className="mono tabular-nums font-medium text-slate-400">
                     Peak: {peakPps.toLocaleString()} pkts/s
                   </div>
                 </div>
@@ -917,25 +922,25 @@ export default function App() {
               <div id="how-it-works" className="mt-8 sm:mt-10 grid grid-cols-1 gap-6 sm:gap-8 lg:grid-cols-2 scroll-mt-24">
                 {/* How It Works */}
                 <div className="panel-card p-7 sm:p-8">
-                  <h3 className="text-lg sm:text-xl font-bold text-slate-900">How Autonomous Defense Works</h3>
-                  <p className="mt-1.5 text-sm text-slate-500">Autonomous closed-loop SDN defense lifecycle</p>
+                  <h3 className="text-lg sm:text-xl font-bold text-slate-900 text-balance">How Autonomous Defense Works</h3>
+                  <p className="mt-1.5 text-sm text-slate-500 text-pretty">Autonomous closed-loop SDN defense lifecycle</p>
 
                   <div className="mt-6 space-y-5 text-sm sm:text-base text-slate-700 leading-relaxed">
                     <div className="flex items-start gap-4">
-                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white mt-0.5">1</span>
-                      <div>
+                      <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white mt-0.5">1</span>
+                      <div className="text-pretty">
                         <strong className="text-slate-900">Flow Statistics Polling:</strong> The Ryu controller queries OpenFlow 1.3 flow counters on switch s1 every second to calculate real-time packet-per-second (PPS) and byte-per-second (BPS) rates per flow.
                       </div>
                     </div>
                     <div className="flex items-start gap-4">
-                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white mt-0.5">2</span>
-                      <div>
+                      <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white mt-0.5">2</span>
+                      <div className="text-pretty">
                         <strong className="text-slate-900">Anomaly Classification:</strong> Observed flows are evaluated by the ML classification pipeline or the robust threshold fallback ({Math.round(data.traffic.threshold * 1000).toLocaleString()} pkts/s) to isolate malicious packet bursts.
                       </div>
                     </div>
                     <div className="flex items-start gap-4">
-                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white mt-0.5">3</span>
-                      <div>
+                      <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white mt-0.5">3</span>
+                      <div className="text-pretty">
                         <strong className="text-slate-900">Line-Rate Mitigation:</strong> The controller sends an OpenFlow `OFPFlowMod` message pushing a Priority 65535 DROP rule matching the attacker's source IP (`10.0.0.2`), dropping hostile traffic in hardware while legitimate traffic flows undisturbed.
                       </div>
                     </div>
@@ -944,8 +949,8 @@ export default function App() {
 
                 {/* Why Traffic Was Blocked */}
                 <div className="panel-card p-7 sm:p-8">
-                  <h3 className="text-lg sm:text-xl font-bold text-slate-900">Detection Trigger Breakdown</h3>
-                  <p className="mt-1.5 text-sm text-slate-500">Active rules and heuristics applied to mitigate the attack</p>
+                  <h3 className="text-lg sm:text-xl font-bold text-slate-900 text-balance">Detection Trigger Breakdown</h3>
+                  <p className="mt-1.5 text-sm text-slate-500 text-pretty">Active rules and heuristics applied to mitigate the attack</p>
 
                   {data.dropReasons.length ? (
                     <div className="mt-6 space-y-5">
@@ -953,19 +958,19 @@ export default function App() {
                         <div key={reason.reason}>
                           <div className="flex justify-between text-sm sm:text-base font-semibold text-slate-700">
                             <span>{reason.reason}</span>
-                            <span className="mono">{reason.share}%</span>
+                            <span className="mono tabular-nums">{reason.share}%</span>
                           </div>
                           <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-slate-100">
                             <div className="h-full rounded-full bg-rose-600" style={{ width: `${reason.share}%` }} />
                           </div>
                         </div>
                       ))}
-                      <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs sm:text-sm text-slate-600 leading-relaxed">
+                      <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs sm:text-sm text-slate-600 leading-relaxed text-pretty">
                         <strong>Policy Action:</strong> Attacking source IP <code>10.0.0.2</code> is blocked from flooding server <code>10.0.0.3</code>. Normal forwarding rule for legitimate host <code>10.0.0.1</code> remains active with Priority 1.
                       </div>
                     </div>
                   ) : (
-                    <div className="py-16 text-center text-sm text-slate-400">
+                    <div className="py-16 text-center text-sm text-slate-400 text-pretty">
                       No malicious flows currently detected. The network is clean.
                     </div>
                   )}
@@ -976,10 +981,10 @@ export default function App() {
               <section id="threats" className="panel-card mt-8 sm:mt-10 overflow-hidden scroll-mt-24">
                 <div className="flex flex-wrap items-center justify-between gap-5 border-b border-slate-200 p-6 sm:p-7">
                   <div>
-                    <h2 className="text-lg sm:text-xl font-bold text-slate-900">
+                    <h2 className="text-lg sm:text-xl font-bold text-slate-900 text-balance">
                       Per-IP Traffic Breakdown &amp; Mitigation Table
                     </h2>
-                    <p className="mt-1 text-sm text-slate-500">
+                    <p className="mt-1 text-sm text-slate-500 text-pretty">
                       Flow-level OpenFlow 1.3 telemetry per host: Passed vs. Blocked packets with line-rate switch rules
                     </p>
                   </div>
@@ -990,7 +995,7 @@ export default function App() {
                     <div className="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-1 text-xs font-semibold">
                       <button
                         onClick={() => setTableFilter('all')}
-                        className={`rounded-md px-3 py-1.5 transition-colors ${
+                        className={`rounded-md px-3 py-1.5 transition-all enabled:active:scale-[0.97] motion-reduce:enabled:active:scale-100 tabular-nums ${
                           tableFilter === 'all'
                             ? 'bg-white text-slate-900 shadow-sm font-bold'
                             : 'text-slate-600 hover:text-slate-900'
@@ -1000,7 +1005,7 @@ export default function App() {
                       </button>
                       <button
                         onClick={() => setTableFilter('blocked_mixed')}
-                        className={`rounded-md px-3 py-1.5 transition-colors ${
+                        className={`rounded-md px-3 py-1.5 transition-all enabled:active:scale-[0.97] motion-reduce:enabled:active:scale-100 tabular-nums ${
                           tableFilter === 'blocked_mixed'
                             ? 'bg-white text-rose-700 shadow-sm font-bold'
                             : 'text-slate-600 hover:text-slate-900'
@@ -1010,7 +1015,7 @@ export default function App() {
                       </button>
                       <button
                         onClick={() => setTableFilter('legit')}
-                        className={`rounded-md px-3 py-1.5 transition-colors ${
+                        className={`rounded-md px-3 py-1.5 transition-all enabled:active:scale-[0.97] motion-reduce:enabled:active:scale-100 tabular-nums ${
                           tableFilter === 'legit'
                             ? 'bg-white text-emerald-700 shadow-sm font-bold'
                             : 'text-slate-600 hover:text-slate-900'
@@ -1020,23 +1025,34 @@ export default function App() {
                       </button>
                     </div>
 
-                    {/* Search */}
-                    <div className="flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-slate-400">
+                    {/* Search with accessible label and clear button */}
+                    <div className="relative flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-slate-400 focus-within:border-slate-400 transition-colors">
+                      <label htmlFor="ip-table-search" className="sr-only">Search IP traffic entries</label>
                       <Icon name="search" size={15} />
                       <input
+                        id="ip-table-search"
                         value={search}
                         onChange={event => setSearch(event.target.value)}
                         placeholder="Search IP, host, vector..."
-                        aria-label="Search IP traffic entries"
                         className="w-36 sm:w-48 bg-transparent text-xs sm:text-sm text-slate-800 outline-none placeholder:text-slate-400"
                       />
+                      {search && (
+                        <button
+                          type="button"
+                          onClick={() => setSearch('')}
+                          aria-label="Clear search input"
+                          className="flex size-5 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                        >
+                          <Icon name="close" size={12} />
+                        </button>
+                      )}
                     </div>
 
                     {/* Export CSV */}
                     <button
                       disabled={!filteredIpEntries.length}
                       onClick={() => exportCsv(filteredIpEntries)}
-                      className="flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                      className="flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-all enabled:active:scale-[0.97] motion-reduce:enabled:active:scale-100"
                     >
                       <Icon name="download" size={15} /> Export CSV
                     </button>
@@ -1067,7 +1083,7 @@ export default function App() {
                             {/* Source IP & Host */}
                             <td className="py-4.5 px-6">
                               <div className="flex items-center gap-2">
-                                <span className="font-bold text-slate-900 mono text-base">{row.ip}</span>
+                                <span className="font-bold text-slate-900 mono tabular-nums text-base">{row.ip}</span>
                                 {isMixed && (
                                   <span className="inline-flex items-center gap-1 rounded bg-purple-50 px-1.5 py-0.5 text-[10px] font-bold text-purple-700 border border-purple-200">
                                     MIXED IP
@@ -1075,21 +1091,21 @@ export default function App() {
                                 )}
                               </div>
                               <div className="text-xs text-slate-500 mt-0.5 font-medium">{row.hostLabel}</div>
-                              {row.mac && <div className="text-[11px] text-slate-400 mono">{row.mac}</div>}
+                              {row.mac && <div className="text-[11px] text-slate-400 mono tabular-nums">{row.mac}</div>}
                             </td>
 
                             {/* Traffic Vectors & Protocols */}
                             <td className="py-4.5 px-6">
                               <div className="flex flex-col gap-1.5">
                                 {row.allowedFlows.map((f, fi) => (
-                                  <span key={`af-${fi}`} className="inline-flex items-center gap-1.5 rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 border border-emerald-200 w-fit">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                  <span key={`af-${fi}`} className="inline-flex items-center gap-1.5 rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 border border-emerald-200 w-fit mono tabular-nums">
+                                    <span className="size-1.5 rounded-full bg-emerald-500" />
                                     {f.protocol} :{f.dstPort} ({f.pps.toLocaleString()} pkts/s)
                                   </span>
                                 ))}
                                 {row.blockedFlows.map((f, fi) => (
-                                  <span key={`bf-${fi}`} className="inline-flex items-center gap-1.5 rounded-md bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700 border border-rose-200 w-fit">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                                  <span key={`bf-${fi}`} className="inline-flex items-center gap-1.5 rounded-md bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700 border border-rose-200 w-fit mono tabular-nums">
+                                    <span className="size-1.5 rounded-full bg-rose-500" />
                                     {f.protocol} :{f.dstPort} [{f.attackType || 'Attack'}] ({f.pps.toLocaleString()} pkts/s)
                                   </span>
                                 ))}
@@ -1104,17 +1120,17 @@ export default function App() {
                               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
                                 <div>
                                   <span className="text-slate-400">Passed: </span>
-                                  <span className="mono font-bold text-emerald-600">{row.forwardedPps.toLocaleString()}</span>
+                                  <span className="mono tabular-nums font-bold text-emerald-600">{row.forwardedPps.toLocaleString()}</span>
                                   <span className="text-[10px] text-slate-400"> pkts/s</span>
                                 </div>
                                 <div>
                                   <span className="text-slate-400">Blocked: </span>
-                                  <span className="mono font-bold text-rose-600">{row.droppedPps.toLocaleString()}</span>
+                                  <span className="mono tabular-nums font-bold text-rose-600">{row.droppedPps.toLocaleString()}</span>
                                   <span className="text-[10px] text-slate-400"> pkts/s</span>
                                 </div>
                                 <div>
                                   <span className="text-slate-400">Total: </span>
-                                  <span className="mono font-bold text-slate-800">{row.ingressPps.toLocaleString()}</span>
+                                  <span className="mono tabular-nums font-bold text-slate-800">{row.ingressPps.toLocaleString()}</span>
                                   <span className="text-[10px] text-slate-400"> pkts/s</span>
                                 </div>
                               </div>
@@ -1137,7 +1153,7 @@ export default function App() {
                                     />
                                   )}
                                 </div>
-                                <span className="mono text-[10px] text-slate-400 shrink-0 font-medium">
+                                <span className="mono tabular-nums text-[10px] text-slate-400 shrink-0 font-medium">
                                   {dropPercent > 0 && passPercent > 0
                                     ? `${dropPercent.toFixed(0)}% drop`
                                     : dropPercent > 0
@@ -1149,11 +1165,11 @@ export default function App() {
 
                             {/* Mitigation Reason */}
                             <td className="py-4.5 px-6 max-w-xs">
-                              <div className="text-xs sm:text-sm text-slate-800 font-medium leading-snug">
+                              <div className="text-xs sm:text-sm text-slate-800 font-medium leading-snug text-pretty">
                                 {row.primaryReason || 'Clean Legitimate Traffic'}
                               </div>
                               {isMixed && (
-                                <div className="text-[11px] text-purple-700 font-medium mt-1">
+                                <div className="text-[11px] text-purple-700 font-medium mt-1 text-pretty">
                                   Hostile flow isolated at switch; concurrent legitimate stream forwarded
                                 </div>
                               )}
@@ -1163,17 +1179,17 @@ export default function App() {
                             <td className="py-4.5 px-6">
                               {isMixed ? (
                                 <div>
-                                  <div className="mono font-bold text-slate-900 text-xs">P10 / P65535</div>
+                                  <div className="mono tabular-nums font-bold text-slate-900 text-xs">P10 / P65535</div>
                                   <div className="text-[10px] text-purple-600 font-semibold mt-0.5">Pass / Drop Tuple</div>
                                 </div>
                               ) : row.droppedPps > 0 || row.status === 'ACTIVE DROP' || row.status === 'RULE RETAINED' ? (
                                 <div>
-                                  <div className="mono font-bold text-rose-600 text-sm">65535</div>
+                                  <div className="mono tabular-nums font-bold text-rose-600 text-sm">65535</div>
                                   <div className="text-[10px] text-rose-500 font-medium">DROP Rule</div>
                                 </div>
                               ) : (
                                 <div>
-                                  <div className="mono font-semibold text-slate-600 text-sm">10</div>
+                                  <div className="mono tabular-nums font-semibold text-slate-600 text-sm">10</div>
                                   <div className="text-[10px] text-emerald-600 font-medium">FORWARD Rule</div>
                                 </div>
                               )}
@@ -1183,12 +1199,12 @@ export default function App() {
                             <td className="py-4.5 px-6 text-right">
                               {row.status === 'MIXED' ? (
                                 <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-100 px-3 py-1 text-xs font-bold text-purple-800 border border-purple-200">
-                                  <span className="h-1.5 w-1.5 rounded-full bg-purple-600 animate-pulse" />
+                                  <span className="size-1.5 rounded-full bg-purple-600 animate-pulse" />
                                   MIXED · PARTIAL DROP
                                 </span>
                               ) : row.status === 'ACTIVE DROP' ? (
                                 <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-100 px-3 py-1 text-xs font-bold text-rose-700 border border-rose-200">
-                                  <span className="h-1.5 w-1.5 rounded-full bg-rose-600 animate-ping" />
+                                  <span className="size-1.5 rounded-full bg-rose-600 animate-ping" />
                                   ACTIVE DROP
                                 </span>
                               ) : row.status === 'RULE RETAINED' ? (
@@ -1197,7 +1213,7 @@ export default function App() {
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800 border border-emerald-200">
-                                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
+                                  <span className="size-1.5 rounded-full bg-emerald-600" />
                                   CLEAN ALLOWED
                                 </span>
                               )}
@@ -1213,24 +1229,24 @@ export default function App() {
                         <td className="py-4 px-6" colSpan={2}>
                           <div className="flex items-center gap-2">
                             <span className="font-bold text-slate-900 uppercase tracking-wider text-xs">Switch s1 Sum</span>
-                            <span className="text-xs text-slate-500 font-normal">({filteredIpEntries.length} hosts shown)</span>
+                            <span className="text-xs text-slate-500 font-normal tabular-nums">({filteredIpEntries.length} hosts shown)</span>
                           </div>
                         </td>
                         <td className="py-4 px-6" colSpan={2}>
                           <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                             <div>
                               <span className="text-slate-400 text-xs">Passed: </span>
-                              <span className="mono font-bold text-emerald-600">{totalVisiblePassed.toLocaleString()}</span>
+                              <span className="mono tabular-nums font-bold text-emerald-600">{totalVisiblePassed.toLocaleString()}</span>
                               <span className="text-[11px] text-slate-400"> pkts/s</span>
                             </div>
                             <div>
                               <span className="text-slate-400 text-xs">Blocked: </span>
-                              <span className="mono font-bold text-rose-600">{totalVisibleBlocked.toLocaleString()}</span>
+                              <span className="mono tabular-nums font-bold text-rose-600">{totalVisibleBlocked.toLocaleString()}</span>
                               <span className="text-[11px] text-slate-400"> pkts/s</span>
                             </div>
                             <div>
                               <span className="text-slate-400 text-xs">Total Ingress: </span>
-                              <span className="mono font-bold text-slate-900">{totalVisibleIngress.toLocaleString()}</span>
+                              <span className="mono tabular-nums font-bold text-slate-900">{totalVisibleIngress.toLocaleString()}</span>
                               <span className="text-[11px] text-slate-400"> pkts/s</span>
                             </div>
                           </div>
@@ -1242,7 +1258,7 @@ export default function App() {
                               100% KPI MATCH
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                            <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 tabular-nums">
                               Filtered View ({totalVisibleIngress.toLocaleString()} pkts/s)
                             </span>
                           )}
@@ -1252,10 +1268,27 @@ export default function App() {
                   </table>
 
                   {!filteredIpEntries.length && (
-                    <div className="py-16 text-center text-sm text-slate-400">
-                      {ipTrafficList.length
-                        ? 'No host entries match the current search or filter.'
-                        : 'No host devices detected on switch s1. Network is idle.'}
+                    <div className="py-16 text-center">
+                      <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                        <Icon name="search" size={20} />
+                      </div>
+                      <p className="mt-3 text-sm font-medium text-slate-600 text-pretty">
+                        {ipTrafficList.length
+                          ? 'No host entries match the current search or filter criteria.'
+                          : 'No host devices detected on switch s1. Network is idle.'}
+                      </p>
+                      {ipTrafficList.length > 0 && (tableFilter !== 'all' || search.trim()) && (
+                        <button
+                          onClick={() => {
+                            setTableFilter('all')
+                            setSearch('')
+                          }}
+                          className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 transition-all enabled:active:scale-[0.97] motion-reduce:enabled:active:scale-100"
+                        >
+                          <Icon name="refresh" size={13} />
+                          Reset Filters &amp; Search
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>

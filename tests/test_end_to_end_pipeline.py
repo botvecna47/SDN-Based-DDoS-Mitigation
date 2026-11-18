@@ -267,6 +267,68 @@ class TestEndToEndPipeline(unittest.TestCase):
         self.assertEqual(len(summary["allowed_flows"]), 5)
         self.assertEqual(len(summary["blocked_flows"]), 6)
 
+    def test_api_schema_contract_for_dashboard(self):
+        """
+        Verify that GET /api/network-stats satisfies the exact TypeScript
+        Snapshot interface consumed by the React/Vite dashboard in src/data.ts.
+        """
+        client = app.test_client()
+        update_state(switch_connected=True, last_updated_at=time.time())
+
+        resp = client.get('/api/network-stats')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+
+        # Core Snapshot top-level properties
+        self.assertIn('health', data)
+        self.assertIn(data['health'], ('operational', 'degraded', 'offline'))
+        self.assertIn('detectionMode', data)
+        self.assertIn('endpointsOnline', data)
+        self.assertIn('endpointsTotal', data)
+        self.assertIsInstance(data['endpointsOnline'], int)
+        self.assertIsInstance(data['endpointsTotal'], int)
+
+        # Metrics object
+        self.assertIn('metrics', data)
+        metrics = data['metrics']
+        for key in ('currentPps', 'droppedPps', 'forwardedPps', 'uptimeSec', 'activeRules', 'mlLatencyMs'):
+            self.assertIn(key, metrics)
+            self.assertIsInstance(metrics[key], (int, float))
+
+        # Traffic history
+        self.assertIn('traffic', data)
+        traffic = data['traffic']
+        self.assertIn('ingress', traffic)
+        self.assertIn('dropped', traffic)
+        self.assertIn('threshold', traffic)
+        self.assertIsInstance(traffic['ingress'], list)
+        self.assertIsInstance(traffic['dropped'], list)
+
+        # Threats list
+        self.assertIn('threats', data)
+        self.assertIsInstance(data['threats'], list)
+
+        # IP Traffic list and flow entry contract
+        self.assertIn('ipTraffic', data)
+        self.assertIsInstance(data['ipTraffic'], list)
+        for entry in data['ipTraffic']:
+            self.assertIn('ip', entry)
+            self.assertIn('hostLabel', entry)
+            self.assertIn('forwardedPps', entry)
+            self.assertIn('droppedPps', entry)
+            self.assertIn('ingressPps', entry)
+            self.assertIn('allowedFlows', entry)
+            self.assertIn('blockedFlows', entry)
+            self.assertIn('status', entry)
+            self.assertEqual(entry['ingressPps'], entry['forwardedPps'] + entry['droppedPps'])
+
+        # Drop reasons
+        self.assertIn('dropReasons', data)
+        self.assertIsInstance(data['dropReasons'], list)
+        for reason in data['dropReasons']:
+            self.assertIn('reason', reason)
+            self.assertIn('share', reason)
+
 
 if __name__ == '__main__':
     unittest.main()

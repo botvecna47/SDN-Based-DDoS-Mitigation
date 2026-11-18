@@ -22,6 +22,7 @@ body {
 
 button, input, select {
   font: inherit;
+  -webkit-tap-highlight-color: transparent;
 }
 
 button {
@@ -34,12 +35,12 @@ button:disabled, select:disabled, input:disabled {
 }
 
 button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid #0f172a;
   outline-offset: 2px;
 }
 
 button:not(:disabled), a, select:not(:disabled) {
-  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
 }
 
 section {
@@ -48,6 +49,11 @@ section {
 
 .mono {
   font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
 }
 
 .elevation-base { z-index: var(--elevation-base); }
