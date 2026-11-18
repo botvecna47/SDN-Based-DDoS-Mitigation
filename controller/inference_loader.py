@@ -151,32 +151,31 @@ class DDoSDetector:
         # In standard network flows, minimal packet length is 0 (ACKs/handshakes/initial packets)
         min_pkt_size = float(stats.get('min_pkt_size', 0.0))
 
-        # Check for Slowloris / Low-Rate Connection Starvation:
-        # Long flow duration (>= 15s) with persistent tiny throughput (<= 2048 B/s) targeting HTTP/service port
-        is_slow_dos = (dst_port in (80, 8080, 443) and duration_sec >= 15.0 and 0.0 < pps <= 100.0 and bytes_per_sec <= 2048.0)
+        # Behavioral Attack Profile Detection:
+        # 1. Slowloris / Low-Rate HTTP Connection Starvation:
+        is_slow_dos = (
+            dst_port in (80, 8080, 443) and
+            duration_sec >= 10.0 and
+            0.0 < pps <= 120.0 and
+            (bytes_per_sec <= 4096.0 or avg_pkt_size <= 120.0)
+        )
 
-        # Detect botnet subnet IPs (10.0.0.2 to 10.0.0.8) or explicit test flags
-        is_known_botnet = False
-        if src_ip.startswith('10.0.0.'):
-            try:
-                last_octet = int(src_ip.split('.')[-1])
-                # Botnet nodes actively engaging in attack traffic (> 500 PPS, high packet count, or slowloris)
-                is_known_botnet = (2 <= last_octet <= 8 and (pps > 500.0 or packet_count >= 50 or is_slow_dos))
-            except ValueError:
-                pass
+        # 2. High-Rate ICMP Flood (Low rate ping < 1000 PPS is harmless diagnostic traffic)
+        is_icmp_flood = (ip_proto == 1 and pps > 1000.0)
 
-        # Standard low-rate ICMP ping (proto 1) is harmless diagnostic traffic unless flooded
-        is_icmp_benign = (ip_proto == 1 and pps < 1000.0)
+        # 3. High-Rate TCP Flood (TCP SYN / Handshake exhaustion)
+        is_tcp_flood = (ip_proto == 6 and pps > 2500.0)
 
-        # Inbound classification: Attacker flood, slowloris starvation, or volumetric ingress
+        # 4. Volumetric Flood (High PPS or High Bandwidth)
+        is_volumetric = (pps > 2500.0 or bps > 40_000_000.0)
+
+        # Behavioral inbound threat determination: purely based on flow dynamics, never IP identity
         is_attack_profile = (
-            not is_icmp_benign and (
-                (pps > 5000.0) or
-                (bps > 50_000_000.0) or
-                is_slow_dos or
-                is_known_botnet or
-                bool(stats.get('is_attack', False))
-            )
+            is_slow_dos or
+            is_icmp_flood or
+            is_tcp_flood or
+            is_volumetric or
+            bool(stats.get('is_attack', False))
         )
         inbound = 1.0 if is_attack_profile else 0.0
 
@@ -241,12 +240,16 @@ class DDoSDetector:
         src_ip = str(stats.get('src_ip', ''))
         dst_ip = str(stats.get('dst_ip', ''))
         dst_port = int(stats.get('dst_port', 80) or 80)
+        ip_proto = int(stats.get('ip_proto', 17) or 17)
 
         pps = float(stats.get('pps', 0.0))
         bps = float(stats.get('bps', 0.0))
         duration_sec = float(stats.get('duration_sec', 0.0))
+        packet_count = float(stats.get('packet_count', 0.0))
+        byte_count = float(stats.get('byte_count', 0.0))
         bytes_per_sec = bps / 8.0
-        is_slow_dos = (dst_port in (80, 8080, 443) and duration_sec >= 15.0 and 0.0 < pps <= 100.0 and bytes_per_sec <= 2048.0)
+        avg_pkt_size = (bytes_per_sec / pps) if pps > 0 else (byte_count / packet_count if packet_count > 0 else 0.0)
+        is_slow_dos = (dst_port in (80, 8080, 443) and duration_sec >= 10.0 and 0.0 < pps <= 120.0 and (bytes_per_sec <= 4096.0 or avg_pkt_size <= 120.0))
 
         # -------------------------------------------------------------
         # Tier 1: Production 28-Feature ANOVA Decision Tree Pipeline
@@ -265,12 +268,18 @@ class DDoSDetector:
                     is_ddos = bool(self.best_model.predict(selected_row)[0] == 1)
 
                 if is_ddos:
-                    if pps > 5000:
-                        self.last_reason = f"High-rate volumetric flood ({pps:,.0f} pkts/s) detected by CIC-DDoS2019 Decision Tree (prob={prob:.2f})"
+                    if ip_proto == 1 and pps > 1000:
+                        self.last_reason = f"High-rate ICMP echo flood ({pps:,.0f} pkts/s) detected by CIC-DDoS2019 Decision Tree"
                     elif is_slow_dos:
                         self.last_reason = f"Slowloris connection starvation on port {dst_port} detected by CIC-DDoS2019 Decision Tree"
-                    elif src_ip.startswith('10.0.0.') and src_ip.split('.')[-1] in ('2', '4', '5', '6', '7', '8'):
-                        self.last_reason = f"Botnet assault from host {src_ip} detected by CIC-DDoS2019 Decision Tree"
+                    elif ip_proto == 6 and pps > 2500:
+                        self.last_reason = f"TCP SYN handshake flood ({pps:,.0f} pkts/s) on port {dst_port} detected by CIC-DDoS2019 Decision Tree"
+                    elif dst_port == 53 and pps > 2500:
+                        self.last_reason = f"DNS UDP flood ({pps:,.0f} pkts/s) on port {dst_port} detected by CIC-DDoS2019 Decision Tree"
+                    elif dst_port == 8080 and pps > 2500:
+                        self.last_reason = f"High-port volumetric UDP flood ({pps:,.0f} pkts/s) on port {dst_port} detected by CIC-DDoS2019 Decision Tree"
+                    elif pps > 2500 or bps > 40_000_000:
+                        self.last_reason = f"Volumetric flood ({pps:,.0f} pkts/s) on port {dst_port} detected by CIC-DDoS2019 Decision Tree (prob={prob:.2f})"
                     else:
                         self.last_reason = f"Anomalous traffic profile detected by CIC-DDoS2019 Decision Tree (prob={prob:.2f})"
                 else:

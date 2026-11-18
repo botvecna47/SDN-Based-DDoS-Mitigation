@@ -34,7 +34,7 @@ sequenceDiagram
 
 | Property | Value |
 |---|---|
-| **Base URL** | `http://192.168.8.147:5000` (configurable via `.env`) |
+| **Base URL** | `http://171.171.1.253:5000` (configurable via `.env`) |
 | **CORS** | `*` (All origins allowed) |
 | **Polling Interval** | 1 second via `setInterval` in React |
 | **HTTP Client** | Native `fetch` API (No Axios) |
@@ -158,7 +158,7 @@ The UI checks health and detection-mode enums, non-negative numeric metrics, equ
 ## 8. Configuration
 To override the default endpoint in local development, create a `.env` file at the root of the React project:
 ```env
-VITE_DEFENSE_API_URL=http://192.168.8.147:5000/api/network-stats
+VITE_DEFENSE_API_URL=http://171.171.1.253:5000/api/network-stats
 ```
 
-*Last Updated: 2026-10-28*
+*Last Updated: 2026-11-18*

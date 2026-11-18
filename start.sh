@@ -15,13 +15,15 @@ activate_backend_venv() {
 }
 
 echo "SDN DDoS project launcher"
-echo "Start Ryu first, then Flask, then Mininet."
+echo "Recommended order: Ryu -> Flask -> Mininet -> Dashboard"
 echo "1) Start Ryu controller (start first)"
 echo "2) Start Flask API"
-echo "3) Start Mininet topology (after Ryu; requires sudo)"
-echo "4) Start React dashboard on this machine (use npm run dev on Windows for VMware setup)"
-echo "5) Train ML Random Forest model (ml_pipeline/train.py)"
-echo "6) Exit"
+echo "3) Start 10-Host Botnet topology (network/topo_botnet.py; requires sudo)"
+echo "4) Start 3-Host Classic topology (network/topo.py; requires sudo)"
+echo "5) Launch Interactive Attack Menu (network/attack_menu.sh; requires sudo)"
+echo "6) Start React dashboard (npm run dev)"
+echo "7) Train ML model (ml_pipeline/train.py)"
+echo "8) Exit"
 read -r -p "Select a component: " choice
 
 case "$choice" in
@@ -36,16 +38,23 @@ case "$choice" in
         ;;
     3)
         sudo mn -c
-        exec sudo python3 "$PROJECT_ROOT/network/topo.py"
+        exec sudo python3 "$PROJECT_ROOT/network/topo_botnet.py"
         ;;
     4)
-        exec npm run dev
+        sudo mn -c
+        exec sudo python3 "$PROJECT_ROOT/network/topo.py"
         ;;
     5)
+        exec sudo bash "$PROJECT_ROOT/network/attack_menu.sh"
+        ;;
+    6)
+        exec npm run dev
+        ;;
+    7)
         activate_backend_venv
         exec python3 "$PROJECT_ROOT/ml_pipeline/train.py"
         ;;
-    6)
+    8)
         exit 0
         ;;
     *)

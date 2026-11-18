@@ -12,7 +12,10 @@ def cleanup_stale():
     os.system("ip link show | grep -oE '(s1-eth[0-9]+|h[0-9]+-eth[0-9]+)' | xargs -r -n 1 ip link delete 2>/dev/null")
     os.system("pkill -9 -f 'iperf -s' 2>/dev/null")
     os.system("pkill -9 -f 'iperf -c' 2>/dev/null")
-    os.system("pkill -9 -f 'http.server 80' 2>/dev/null")
+    os.system("pkill -9 -f 'server_h3.py' 2>/dev/null")
+    os.system("pkill -9 -f 'http.server' 2>/dev/null")
+    os.system("pkill -9 -f 'hping3' 2>/dev/null")
+    os.system("pkill -9 -f 'slowloris' 2>/dev/null")
 
 def create_network():
     setLogLevel('info')
@@ -32,7 +35,7 @@ def create_network():
     
     info('*** Adding hosts\n')
     h1 = net.addHost('h1', ip='10.0.0.1', mac='00:00:00:00:00:01') # Legit User
-    h2 = net.addHost('h2', ip='10.0.0.2', mac='00:00:00:00:00:02') # Attacker
+    h2 = net.addHost('h2', ip='10.0.0.2', mac='00:00:00:00:00:02') # Attacker / Mixed
     h3 = net.addHost('h3', ip='10.0.0.3', mac='00:00:00:00:00:03') # Server
     
     info('*** Creating links\n')
@@ -43,25 +46,26 @@ def create_network():
     info('*** Starting network\n')
     net.start()
 
-    info('*** Starting iperf UDP and HTTP servers on h3\n')
-    h3.cmd('iperf -s -u &')
-    h3.cmd('python3 -m http.server 80 &')
+    info('*** Starting target services on h3 (iperf UDP 5001 + multi-threaded HTTP/UDP server)\n')
+    h3.cmd('iperf -s -u -p 5001 &')
+    h3.cmd('python3 network/server_h3.py >/dev/null 2>&1 &')
     
     info('*** Bootstrapping MAC learning with pingall\n')
     net.pingAll()
     info('*** MAC learning complete. Network is ready.\n')
     
-    info('*** Starting continuous legitimate background user traffic (h1 -> h3 @ ~850 PPS)\n')
-    h1.cmd('iperf -c 10.0.0.3 -u -b 10m -t 86400 &')
+    info('*** Starting continuous legitimate background user traffic (h1 -> h3:5001 @ ~820 PPS)\n')
+    h1.cmd('iperf -c 10.0.0.3 -u -b 10m -p 5001 -t 86400 &')
     
     try:
         info('*** Running CLI (Type "pingall" to test, or "exit" to quit)\n')
         CLI(net)
     finally:
         info('*** Stopping network\n')
-        h1.cmd('pkill -f "iperf" 2>/dev/null')
-        h3.cmd('pkill -f "http.server" 2>/dev/null')
-        h3.cmd('pkill -f "iperf" 2>/dev/null')
+        h1.cmd('pkill -9 -f "iperf" 2>/dev/null')
+        h2.cmd('pkill -9 -f "hping3" 2>/dev/null')
+        h3.cmd('pkill -9 -f "server_h3" 2>/dev/null')
+        h3.cmd('pkill -9 -f "iperf" 2>/dev/null')
         net.stop()
         cleanup_stale()
 

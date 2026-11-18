@@ -27,7 +27,7 @@ flowchart TD
         RD <--> Browser
     end
 
-    subgraph UbuntuVM["🐧 Ubuntu Linux Guest VM (192.168.x.x)"]
+    subgraph UbuntuVM["🐧 Ubuntu Linux Guest VM (IP: 171.171.1.253)"]
         subgraph MininetSandbox["🌐 Mininet Network Sandbox (network/topo.py)"]
             H1["👤 h1: Legitimate Client\n(IP: 10.0.0.1 · MAC: ...01)"]
             H2["🥷 h2-h8: DDoS Botnet Cluster\n(IP: 10.0.0.2-10.0.0.8 · Spoofed Floods)"]

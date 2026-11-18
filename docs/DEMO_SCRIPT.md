@@ -19,12 +19,13 @@ Ensure all components are running before presenting.
 3. **Terminal 3 (Mininet, Ubuntu VM):**
    ```bash
    sudo mn -c
-   sudo python3 network/topo.py
+   sudo python3 network/topo_botnet.py     # 10-host botnet topology
+   # (or sudo python3 network/topo.py for 3-host demo)
    ```
-4. **Terminal 4 (React, Windows Host):**
-   ```powershell
-   cd "DDoS Mitigation"
+4. **Terminal 4 (React Dashboard, Any Machine):**
+   ```bash
    npm run dev
+   # Open browser at http://171.171.1.253:5173 or http://localhost:5173
    ```
 
 ## 2. Presentation Flowchart
@@ -97,43 +98,33 @@ mininet> h2 pkill -9 hping3
 ```
 **Talk Track:** "Once the attack halts, total ingress falls back to our normal baseline (~85 pkts/s) and the dashboard returns to green. Notice that attacker 10.0.0.2 remains in the Blocked Devices table with a 'RULE RETAINED' badge until the switch's 300-second idle-timeout expires, protecting the server against burst re-offenders."
 
-## 8. Bonus: Flow Table Inspection
+## 8. Bonus: Flow Table & Per-IP Telemetry Inspection
 **Action:** In an Ubuntu terminal or browser, inspect the human-readable flow table:
 ```bash
-curl http://192.168.8.147:5000/api/flow-table
+curl http://171.171.1.253:5000/api/flow-table
+curl http://171.171.1.253:5000/api/network-stats
 ```
-**Talk Track:** "We also built a dedicated OpenFlow inspection endpoint that separates ALLOWED flows, BLOCKED flows, and the TABLE-MISS rule for academic auditability."
+**Talk Track:** "We also built dedicated OpenFlow inspection endpoints that separate ALLOWED flows, BLOCKED flows, and individual per-host statistics (`ipTraffic`). The React dashboard displays this with an inline horizontal stacked bar chart showing exact Passed vs. Blocked ratios per host."
 
-## 9. Q&A
+## 9. Interactive Attack Emulation Menu Demo
+**Action:** In an Ubuntu terminal, launch the new interactive attack menu:
+```bash
+sudo bash network/attack_menu.sh
+```
+**Talk Track:** "Our new attack launchpad allows selecting from 11 emulation options, including volumetric UDP floods, TCP SYN floods, Slowloris HTTP starvation, ICMP echo floods, and dynamic pulsing wave DDoS. Most importantly, Option 7 demonstrates **Same-IP Mixed Traffic**, where nodes h2 and h4 simultaneously emit legitimate streams that pass through and flood attacks that are dropped at line-rate."
+
+## 10. Q&A
 
 **Q: Are you using machine learning?**
-A: We have designed an ML pipeline with a RandomForestClassifier. Currently, the controller uses a robust fallback threshold (PPS > 10,000) while the model `detector.joblib` completes training.
+A: Yes! The system features an active Tier-1 CIC-DDoS2019 Decision Tree model trained on 207,444 flows across 28 ANOVA features. It achieves 99.99% accuracy with 0.00% false positive rate and sub-millisecond inference (~0.18–0.28 ms SLA per flow).
+
+**Q: How does same-IP mixed traffic work?**
+A: Ryu installs flow-granular rules matching the full flow tuple `(eth_type, src_ip, dst_ip, ip_proto, dst_port)`. Benign traffic matches Priority 10 FORWARD rules, while malicious streams matching the attack signature are blocked by Priority 65535 DROP rules without blackholing the entire IP.
 
 **Q: How do the frontend and backend communicate?**
-A: Ryu writes to a `shared_state.json` file securely using a filelock. The Flask API reads this file and serves it to the React app via a single REST endpoint `/api/network-stats` every 1 second.
+A: Ryu writes to `shared_state.json` securely using a filelock. The Flask API reads this file and serves it to the React app via `GET /api/network-stats` every 1 second. The frontend sums all per-IP rates to ensure 100% mathematical consistency with the KPI cards.
 
-**Q: Why 1.5 seconds for polling?**
-A: It offers a balance between rapid detection and keeping switch control plane overhead low.
+**Q: What triggers mitigation?**
+A: Observed flow statistics are evaluated against the ML classifier. Upon detecting an attack profile (volumetric, SYN flood, Slowloris, ICMP, or pulsing), Ryu sends an `OFPFlowMod` message pushing a Priority 65535 DROP rule with an idle timeout of 300 seconds.
 
-**Q: How does the switch know to drop traffic?**
-A: Ryu installs an `OFPFlowMod` rule with priority 65535, matching the attacker's IP and instructing the switch to DROP.
-
-**Q: Is the dashboard real-time?**
-A: Yes, it fetches state every 1 second using native `fetch` and maintains a 48-second rolling window.
-
-**Q: What version of Python is required?**
-A: Python 3.9 in the `ryu39_env` virtual environment for Ryu compatibility.
-
-**Q: Are cross-origin requests handled?**
-A: Yes, Flask is configured with `CORS(origins="*")` to permit the React dev server to communicate easily.
-
-**Q: What triggers a recovery?**
-A: The status returns to operational when traffic falls below 5,000 PPS; the blocked record stays until the switch confirms that its idle-timeout removed the rule.
-
-## 9. Backup Plans
-- **Mininet crashes:** `sudo mn -c` to clean up and restart.
-- **Dashboard fails:** Reload the page; verify `.env` IP matches the Ubuntu VM.
-- **Ryu fails:** Restart the `simple_monitor.py` script; verify `ryu39_env` is active.
-- **ML fails:** The code has a fallback to the PPS threshold built-in natively.
-
-*Last Updated: 2026-10-09*
+*Last Updated: 2026-11-18*

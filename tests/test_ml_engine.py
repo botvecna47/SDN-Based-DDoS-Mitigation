@@ -335,6 +335,51 @@ class TestMLEngine(unittest.TestCase):
         self.assertLess(avg_lat, 1.0, "Average latency should be well under 1.0 ms.")
         self.assertLess(p99_lat, 5.0, "99th percentile latency must strictly pass < 5.0 ms SLA.")
 
+    # -------------------------------------------------------------
+    # 6. Same-IP Mixed Traffic Discrimination Test
+    # -------------------------------------------------------------
+    def test_12_same_ip_mixed_traffic_benign_and_attack(self):
+        """
+        Verify that the same source IP can carry BOTH legitimate traffic (allowed/benign)
+        and attack traffic (detected/attack) based strictly on flow behavior without IP bias.
+        """
+        # Node h2 (10.0.0.2): Benign UDP stream on port 5001
+        h2_legit_flow = {
+            'src_ip': '10.0.0.2', 'dst_ip': '10.0.0.3', 'pps': 440.0,
+            'bps': 5_000_000.0, 'duration_sec': 30.0, 'packet_count': 13200,
+            'src_port': 50001, 'dst_port': 5001, 'ip_proto': 17
+        }
+        is_ddos_h2_legit, _ = self.detector.predict(h2_legit_flow)
+        self.assertFalse(is_ddos_h2_legit, "10.0.0.2 legitimate UDP stream on port 5001 must be classified as BENIGN.")
+
+        # Node h2 (10.0.0.2): Volumetric UDP flood on port 80
+        h2_attack_flow = {
+            'src_ip': '10.0.0.2', 'dst_ip': '10.0.0.3', 'pps': 9500.0,
+            'bps': 20_000_000.0, 'duration_sec': 10.0, 'packet_count': 95000,
+            'src_port': 50000, 'dst_port': 80, 'ip_proto': 17
+        }
+        is_ddos_h2_attack, _ = self.detector.predict(h2_attack_flow)
+        self.assertTrue(is_ddos_h2_attack, "10.0.0.2 volumetric flood on port 80 must be classified as ATTACK.")
+
+        # Node h4 (10.0.0.4): Benign DNS queries on port 53
+        h4_legit_flow = {
+            'src_ip': '10.0.0.4', 'dst_ip': '10.0.0.3', 'pps': 230.0,
+            'bps': 200_000.0, 'duration_sec': 20.0, 'packet_count': 4600,
+            'src_port': 50002, 'dst_port': 53, 'ip_proto': 17
+        }
+        is_ddos_h4_legit, _ = self.detector.predict(h4_legit_flow)
+        self.assertFalse(is_ddos_h4_legit, "10.0.0.4 legitimate DNS stream on port 53 must be classified as BENIGN.")
+
+        # Node h4 (10.0.0.4): High-rate TCP SYN flood on port 80
+        h4_attack_flow = {
+            'src_ip': '10.0.0.4', 'dst_ip': '10.0.0.3', 'pps': 6800.0,
+            'bps': 8_000_000.0, 'duration_sec': 10.0, 'packet_count': 68000,
+            'src_port': 48920, 'dst_port': 80, 'ip_proto': 6
+        }
+        is_ddos_h4_attack, _ = self.detector.predict(h4_attack_flow)
+        self.assertTrue(is_ddos_h4_attack, "10.0.0.4 TCP SYN flood on port 80 must be classified as ATTACK.")
+
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -76,8 +76,16 @@ def history_collector():
             switch_connected = bool(state.get("switch_connected", False)) and time.time() - last_updated_at <= 5
 
             if switch_connected:
-                current_pps = max(0.0, float(state.get("current_pps", 0)))
-                mitigated_pps = max(0.0, float(state.get("dropped_pps", 0)))
+                raw_ip_traffic = state.get("ip_traffic", [])
+                if raw_ip_traffic:
+                    fwd = sum(float(e.get("forwardedPps", 0)) for e in raw_ip_traffic)
+                    drp = sum(float(e.get("droppedPps", 0)) for e in raw_ip_traffic)
+                    current_pps = fwd + drp
+                    mitigated_pps = drp
+                else:
+                    forwarded_pps = max(0.0, float(state.get("forwarded_pps", 0)))
+                    mitigated_pps = max(0.0, float(state.get("dropped_pps", 0)))
+                    current_pps = max(0.0, float(state.get("current_pps", forwarded_pps + mitigated_pps)))
             else:
                 current_pps = 0.0
                 mitigated_pps = 0.0
@@ -98,59 +106,90 @@ def network_stats():
         if "error" in state:
             return jsonify({"error": state["error"]}), 503
 
-        current_pps = max(0.0, float(state.get("current_pps", 0)))
         status = state.get("status", "NORMAL")
-        blocked_ips = state.get("blocked_ips", [])
         active_flows = max(0, int(state.get("active_flows", 0)))
         last_updated_at = float(state.get("last_updated_at", 0) or 0)
         switch_connected = bool(state.get("switch_connected", False)) and time.time() - last_updated_at <= 5
-        if not switch_connected:
-            current_pps = 0.0
+
+        raw_ip_traffic = state.get("ip_traffic", []) if switch_connected else []
+
+        ip_traffic = []
+        for entry in raw_ip_traffic:
+            ip_traffic.append({
+                "ip": entry.get("ip", ""),
+                "hostLabel": entry.get("hostLabel", f"Host ({entry.get('ip')})"),
+                "mac": entry.get("mac", ""),
+                "forwardedPps": safe_int(entry.get("forwardedPps", 0)),
+                "droppedPps": safe_int(entry.get("droppedPps", 0)),
+                "ingressPps": safe_int(entry.get("ingressPps", 0)),
+                "allowedFlows": entry.get("allowedFlows", []),
+                "blockedFlows": entry.get("blockedFlows", []),
+                "status": entry.get("status", "ALLOWED"),
+                "primaryReason": entry.get("primaryReason", "Clean Legitimate Traffic"),
+                "severity": entry.get("severity", "Benign"),
+            })
+
+        if switch_connected:
+            if ip_traffic:
+                forwarded_pps = sum(e["forwardedPps"] for e in ip_traffic)
+                mitigated_pps = sum(e["droppedPps"] for e in ip_traffic)
+                current_pps = forwarded_pps + mitigated_pps
+            else:
+                forwarded_pps = max(0, int(state.get("forwarded_pps", 0)))
+                mitigated_pps = max(0, int(state.get("dropped_pps", 0)))
+                current_pps = max(0, int(state.get("current_pps", forwarded_pps + mitigated_pps)))
+        else:
+            current_pps = 0
+            mitigated_pps = 0
+            forwarded_pps = 0
             active_flows = 0
 
         fallback_threshold_pps = max(1, int(state.get("fallback_threshold_pps", FALLBACK_THRESHOLD_PPS)))
 
-        # Ryu calculates this from the switch's source-IP DROP flow counters.
-        mitigated_pps = max(0.0, float(state.get("dropped_pps", 0))) if switch_connected else 0.0
-        forwarded_pps = max(0.0, current_pps - mitigated_pps)
-
-        # Convert simple list of blocked IPs into the structured Threat object the UI expects
+        # Convert blocked and mixed IP traffic entries into detailed Threats for the UI
         threats = []
-        for blocked in blocked_ips:
-            ip_val = blocked if isinstance(blocked, str) else blocked.get("ip", "Unknown")
-            if ip_val in ("10.0.0.3", "10.0.0.1"):
-                continue  # Never display the protected server or legitimate client as an attacker
-            if ip_val == "10.0.0.2":
-                host_label = "h2 (Attacker Host)"
-            elif ip_val.startswith("10.0.0."):
-                try:
-                    octet = int(ip_val.split(".")[-1])
-                    if 4 <= octet <= 8:
-                        host_label = f"h{octet} (Botnet Attacker)"
-                    elif octet == 1:
-                        host_label = "h1 (Legitimate User)"
-                    else:
-                        host_label = f"Host ({ip_val})"
-                except ValueError:
-                    host_label = "Mininet Host"
-            else:
-                host_label = f"Host ({ip_val})"
+        for entry in ip_traffic:
+            if entry["droppedPps"] > 0 or entry["blockedFlows"]:
+                first_bf = entry["blockedFlows"][0] if entry["blockedFlows"] else {}
+                target_port = first_bf.get("dstPort", 80)
+                target_ip = first_bf.get("dstIp", "10.0.0.3")
+                proto = first_bf.get("attackType", first_bf.get("protocol", "Attack Flow"))
+                reason = entry.get("primaryReason") or first_bf.get("reason", f"DDoS detected by {state.get('ml_model_name', 'CIC-DDoS2019 Decision Tree')}")
 
-            threats.append({
-                "ip": ip_val,
-                "country": host_label,
-                "port": 80,
-                "protocol": "UDP",
-                "reason": f"DDoS detected by {state.get('ml_model_name', 'ML Decision Tree')}" if state.get("detection_mode") == "machine_learning" else "DDoS detected by PPS threshold fallback",
-                "severity": "Critical"
-            })
+                threats.append({
+                    "ip": entry["ip"],
+                    "country": entry["hostLabel"],
+                    "mac": entry.get("mac", ""),
+                    "port": target_port,
+                    "protocol": proto,
+                    "target": f"{target_ip}:{target_port}",
+                    "reason": reason,
+                    "severity": entry.get("severity", "Critical"),
+                    "ratePps": entry["droppedPps"],
+                    "forwardedPps": entry["forwardedPps"],
+                    "ingressPps": entry["ingressPps"],
+                    "action": "DROP (Priority 65535)",
+                    "status": entry["status"],
+                    "flows": entry["blockedFlows"] + entry["allowedFlows"]
+                })
+
+        drop_reasons = []
+        if threats:
+            reason_counts = {}
+            for t in threats:
+                r = t["protocol"]
+                reason_counts[r] = reason_counts.get(r, 0) + max(1, t["ratePps"])
+            total_drop_rate = sum(reason_counts.values()) or 1
+            for r, rate in reason_counts.items():
+                drop_reasons.append({
+                    "reason": r,
+                    "share": round((rate / total_drop_rate) * 100)
+                })
 
         snapshot = {
             "health": "offline" if not switch_connected else ("degraded" if status == "UNDER_ATTACK" else "operational"),
             "detectionMode": state.get("detection_mode", "threshold_fallback"),
             "mlModelName": state.get("ml_model_name", "CIC-DDoS2019 Decision Tree"),
-            # Only the OpenFlow switch connection is observed directly here;
-            # host reachability is not verified by the controller.
             "endpointsOnline": 1 if switch_connected else 0,
             "endpointsTotal": 1,
             "metrics": {
@@ -164,15 +203,16 @@ def network_stats():
             "traffic": {
                 "ingress": list(history_ingress),
                 "dropped": list(history_dropped),
-                "threshold": fallback_threshold_pps / 1000.0 # PPS shown in thousands
+                "threshold": fallback_threshold_pps / 1000.0
             },
             "threats": threats,
-            "dropReasons": [
-                {"reason": state.get("ml_model_name", "ML Decision Tree") if state.get("detection_mode") == "machine_learning" else "PPS threshold fallback", "share": 100},
-            ] if threats else []
+            "ipTraffic": ip_traffic,
+            "dropReasons": drop_reasons if drop_reasons else (
+                [{"reason": state.get("ml_model_name", "CIC-DDoS2019 Decision Tree"), "share": 100}] if threats else []
+            )
         }
 
-        # Log system state changes to logs/backend.log
+        # Log state changes
         health_state = snapshot["health"]
         global last_logged_health
         if 'last_logged_health' not in globals() or last_logged_health != health_state:
@@ -196,8 +236,7 @@ def health():
 @app.route('/api/flow-table', methods=['GET'])
 def flow_table():
     """
-    Returns a human-readable breakdown of ALLOWED vs BLOCKED flows.
-    This makes it clear what traffic is being permitted vs dropped by Ryu.
+    Returns a human-readable breakdown of ALLOWED vs BLOCKED flows with per-rule PPS.
     """
     try:
         state = read_state()

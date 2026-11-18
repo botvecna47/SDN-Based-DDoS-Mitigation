@@ -1,7 +1,8 @@
 # 🛡️ SDN DDoS Mitigation — Setup & Running Guide
 
-> **Last updated: 2026-10-28**
+> **Last updated: 2026-11-18**
 > The root `src/` dashboard starts in Demo mode; switch to Live after the API and Mininet switch are reporting.
+> **Current VM IP: `171.171.1.253`** (verify anytime with `hostname -I`).
 > **Always `git pull` on Ubuntu before starting a session.**
 
 ---
@@ -10,7 +11,7 @@
 
 ```mermaid
 flowchart TB
-    subgraph VM["🐧 Ubuntu Virtual Machine (Bridged IP: e.g. 192.168.x.x)"]
+    subgraph VM["🐧 Ubuntu Virtual Machine (Current IP: 171.171.1.253)"]
         subgraph Terminal1["Terminal 1: Controller"]
             Ryu["🛡️ Ryu SDN Controller\n(controller/simple_monitor.py)\nListens on TCP:6653"]
         end
@@ -21,24 +22,38 @@ flowchart TB
         end
 
         subgraph Terminal3["Terminal 3: Mininet Network"]
-            H1["👤 Host h1 (10.0.0.1)\nLegitimate User"]
-            H2["🥷 Host h2 (10.0.0.2)\nAttacker"]
-            H3["🎯 Host h3 (10.0.0.3)\nTarget Server (iperf)"]
+            H1["👤 Host h1 (10.0.0.1)\nLegit UDP Streamer"]
+            H11["👤 Host h11 (10.0.0.11)\nLegit HTTP Web"]
+            H12["👤 Host h12 (10.0.0.12)\nLegit DNS Client"]
+            H2["🥷 Host h2 (10.0.0.2)\nMixed: Volumetric + Legit Stream"]
+            H4["🥷 Host h4 (10.0.0.4)\nMixed: SYN Flood + Legit DNS"]
+            H5["🥷 Host h5 (10.0.0.5)\nSlowloris HTTP Starvation"]
+            H6["🥷 Host h6 (10.0.0.6)\nHigh-Rate ICMP Echo Flood"]
+            H7["🥷 Host h7 (10.0.0.7)\nHigh-Port UDP Flood (:8080)"]
+            H8["🥷 Host h8 (10.0.0.8)\nDynamic Pulsing Wave (10s ON / 5s OFF)"]
+            H3["🎯 Host h3 (10.0.0.3)\nTarget Server (HTTP, iperf UDP, DNS)"]
             S1{{"⚡ Open vSwitch s1\nOpenFlow 1.3 Datapath"}}
 
             H1 --- S1
+            H11 --- S1
+            H12 --- S1
             H2 --- S1
+            H4 --- S1
+            H5 --- S1
+            H6 --- S1
+            H7 --- S1
+            H8 --- S1
             S1 --- H3
         end
 
-        S1 <-->|"OpenFlow 1.3\n(Stats & Drop Rules)"| Ryu
-        Ryu -->|"Writes Telemetry"| StateFile
+        S1 <-->|"OpenFlow 1.3\n(Flow Stats & Granular Drop Rules)"| Ryu
+        Ryu -->|"Writes Telemetry (ip_traffic)"| StateFile
         Flask -->|"Reads Telemetry"| StateFile
     end
 
-    subgraph WindowsHost["🖥️ Windows Host Machine"]
-        subgraph Terminal4["Terminal 4: React UI"]
-            React["⚛️ React Dashboard\n(App.tsx)\nhttp://localhost:5173"]
+    subgraph HostAccess["🖥️ Host / Browser Access"]
+        subgraph DashboardUI["React Dashboard UI"]
+            React["⚛️ React Dashboard\n(App.tsx)\nhttp://171.171.1.253:5173 or http://localhost:5173"]
         end
     end
 
@@ -46,16 +61,16 @@ flowchart TB
 ```
 
 ```
-Ubuntu VM (192.168.x.x)                    Windows Machine
+Ubuntu VM (171.171.1.253)                  Browser / Client Machine
 ┌─────────────────────────────┐           ┌──────────────────────────┐
-│ Terminal 1: Ryu Controller  │           │ Terminal: React Dashboard │
-│ → port 6653 (OpenFlow)      │           │ → http://localhost:5173   │
+│ Terminal 1: Ryu Controller  │           │ React Dashboard UI       │
+│ → port 6653 (OpenFlow)      │           │ → http://171.171.1.253:5173
 │                             │           │                          │
 │ Terminal 2: Flask API       │◄──HTTP────│ Polls /api/network-stats │
 │ → port 5000 (REST)          │           │ every 1 second           │
 │                             │           └──────────────────────────┘
 │ Terminal 3: Mininet         │
-│ → h1, h2, h3, s1           │
+│ → h1-h12, h2-h8, h3, s1     │
 └─────────────────────────────┘
 ```
 
@@ -63,8 +78,11 @@ Ubuntu VM (192.168.x.x)                    Windows Machine
 |-----------|---------|------|------|
 | Ryu SDN Controller | Ubuntu VM | 6653 | `controller/simple_monitor.py` |
 | Flask REST API | Ubuntu VM | 5000 | `backend_api/app.py` |
-| Mininet Topology | Ubuntu VM | — | `network/topo.py` |
-| React Dashboard | Windows | 5173 | `src/App.tsx` |
+| Botnet Topology (10 Hosts) | Ubuntu VM | — | `network/topo_botnet.py` |
+| Basic Demo Topology (3 Hosts)| Ubuntu VM | — | `network/topo.py` |
+| Interactive Attack Menu | Ubuntu VM | — | `network/attack_menu.sh` |
+| Dynamic Traffic Suite | Ubuntu VM | — | `network/dynamic_traffic_suite.py` |
+| React Dashboard | Any Browser | 5173 | `src/App.tsx` |
 
 ---
 
@@ -132,15 +150,15 @@ npm install
 If your teammate is running this on their own machine, their Ubuntu VM will have a different IP address. 
 They DO NOT need to edit the source code. Instead:
 1. Copy the `.env.example` file and rename it to `.env`
-2. Run `hostname -I` in their Ubuntu VM to get their IP.
-3. Edit the `.env` file and replace `192.168.8.147` with their IP:
-   `VITE_DEFENSE_API_URL="http://YOUR_VM_IP:5000/api/network-stats"`
+2. Run `hostname -I` in their Ubuntu VM to get their IP (currently `171.171.1.253`).
+3. Edit the `.env` file and set their IP:
+   `VITE_DEFENSE_API_URL="http://171.171.1.253:5000/api/network-stats"`
 
 ---
 
 ## 🚀 Every-Session Launch Sequence
 
-Open **4 terminals** (3 on Ubuntu, 1 on Windows).
+Open **4 terminals** (3 on Ubuntu, 1 on Windows or browser).
 
 ---
 
@@ -157,15 +175,11 @@ ryu-manager controller/simple_monitor.py
 ```
 loading app controller/simple_monitor.py
 instantiating app controller/simple_monitor.py of SimpleMonitor13
-Ryu is running
-```
-
-**Active ML Model Notice:**
-```
 [DDoSDetector] Tier 1 Active: CIC-DDoS2019 Decision Tree (99.99% Acc, ANOVA)
+Registering datapath: 0000000000000001
 ```
 
-**🛑 DO NOT continue until you see Ryu is running.**
+**🛑 DO NOT continue until you see Ryu is running and registers datapath.**
 
 ---
 
@@ -183,12 +197,12 @@ python3 app.py
 **✅ Success looks like:**
 ```
 * Running on http://0.0.0.0:5000
-* Running on http://192.168.8.147:5000
+* Running on http://171.171.1.253:5000
 ```
 
 **Quick test** (from any machine on the network):
 ```bash
-curl http://192.168.8.147:5000/api/health
+curl http://171.171.1.253:5000/api/health
 # Should return: {"status": "ok", "timestamp": "..."}
 ```
 
@@ -196,16 +210,36 @@ curl http://192.168.8.147:5000/api/health
 
 ---
 
-### ③ Ubuntu Terminal 3 — Mininet Network
+### ③ Ubuntu Terminal 3 — Mininet Network (Botnet or 3-Host Demo)
 
-Open a new Ubuntu terminal tab:
+Choose between the **10-Host Botnet Topology** (recommended for multi-IP and mixed traffic demonstration) or the **3-Host Classic Topology**:
 
+#### Option A: 10-Host Botnet Topology (Full Capability)
 ```bash
-# Step A: Clean any leftover state first (mandatory)
+# Clean previous state (mandatory)
 sudo mn -c
 
-# Step B: Start the network
-cd SDN-Based-DDoS-Mitigation
+# Launch the 10-host botnet topology
+sudo python3 network/topo_botnet.py
+```
+
+This spins up:
+- Protected Target: `h3` (`10.0.0.3`) running multithreaded HTTP (:80, :8080), iperf UDP (:5001), and DNS (:53)
+- Pure Legitimate Clients: `h1` (:5001 UDP), `h11` (:80 HTTP), `h12` (:53 DNS)
+- Attack & Mixed Nodes: `h2` (UDP flood + legit :5001), `h4` (SYN flood + legit :53), `h5` (Slowloris), `h6` (ICMP flood), `h7` (UDP :8080), `h8` (Pulsing wave)
+
+Inside the `botnet>` CLI, you can directly launch attacks or test:
+```text
+botnet> botnet       # Launches all attackers with distinct rates & mixed traffic
+botnet> legit        # Spawns baseline legitimate user traffic (~1,315 pkts/s)
+botnet> stop_attack  # Halts attacks; retains legitimate traffic
+botnet> stop_all     # Stops all traffic generators
+botnet> status       # Shows active background generator processes
+```
+
+#### Option B: 3-Host Classic Demo Topology
+```bash
+sudo mn -c
 sudo python3 network/topo.py
 ```
 
@@ -250,7 +284,70 @@ Open your browser at: **http://localhost:5173**
 
 ---
 
-## 🎬 Demo Walkthrough
+## 🎯 Interactive Attack Emulation Launchpad (`network/attack_menu.sh`)
+
+The system includes a unified interactive attack emulation suite that can be launched in a dedicated terminal or directly from within Mininet:
+
+```bash
+# Launch interactive menu (as root or inside Mininet)
+sudo bash network/attack_menu.sh
+```
+
+You can also pass non-interactive arguments directly (e.g. `sudo bash network/attack_menu.sh 6` or `mininet> h2 bash network/attack_menu.sh botnet`).
+
+### Attack Menu Options Overview
+
+```text
+======================================================================
+       SDN DDOS MITIGATION — ATTACK EMULATION LAUNCHPAD               
+======================================================================
+ Target Server : 10.0.0.3 (Host h3)
+ Detection     : Tier-1 CIC-DDoS2019 Decision Tree (Ryu Controller)
+ Granularity   : Flow-Tuple Mitigation (Same-IP Mixed Allowed + Dropped)
+======================================================================
+
+Select an emulation vector to launch:
+  [1]  Volumetric UDP Flood       (h2: 10.0.0.2 :80 @ ~9,500 PPS)
+  [2]  TCP SYN Handshake Flood    (h4: 10.0.0.4 :80 @ ~6,800 PPS)
+  [3]  Slowloris HTTP Starvation  (h5: 10.0.0.5 :80 @ ~45 PPS)
+  [4]  High-Rate ICMP Ping Flood  (h6: 10.0.0.6 @ ~5,200 PPS)
+  [5]  Dynamic Pulsing Wave DDoS  (h8: 10.0.0.8 10s ON ~7,600 PPS / 5s OFF)
+  [6]  Coordinated Botnet Assault (Launches h2, h4-h8 with distinct rates)
+  [7]  Same-IP Mixed Traffic Demo (h2 and h4 simultaneous legit + attack)
+  [8]  High-Port UDP Flood        (h7: 10.0.0.7 :8080 @ ~11,400 PPS)
+  [9]  Start Legitimate Streams   (h1, h11, h12 baseline ~1,315 PPS)
+  [10] Stop Attack Traffic        (Halts attacks; retains legitimate streams)
+  [11] Stop All Traffic           (Halts attacks AND legitimate traffic)
+  [0]  Exit
+```
+
+### Detailed Attack Vector Characteristics
+
+| Option | Name | Source IP | Port / Protocol | Packet Rate | Behavior & Defense Action |
+|--------|------|-----------|-----------------|-------------|---------------------------|
+| **1** | Volumetric UDP Flood | `10.0.0.2` | UDP :80 | ~9,500 pkts/s | Line-rate switch drop; Priority 65535 DROP rule installed. |
+| **2** | TCP SYN Flood | `10.0.0.4` | TCP SYN :80 | ~6,800 pkts/s | Incomplete handshake flood; detected and dropped at line-rate. |
+| **3** | Slowloris HTTP Starvation | `10.0.0.5` | TCP :80 | ~45 pkts/s | Low-and-slow socket exhaustion; detected by low BPS / persistent sockets. |
+| **4** | ICMP Echo Flood | `10.0.0.6` | ICMP (proto 1) | ~5,200 pkts/s | High-rate echo ping saturation; isolated without blackholing ping service. |
+| **5** | Pulsing Wave DDoS | `10.0.0.8` | UDP :53 | 10s ON (~7,600) / 5s OFF (0) | Wave attack designed to game static thresholds; caught by ML detector. |
+| **6** | Coordinated Botnet | `10.0.0.2`–`10.0.0.8` | Mixed ports | ~40,500 pkts/s total | Multi-vector attack with distinct rates per IP and concurrent legit streams. |
+| **7** | Same-IP Mixed Traffic | `10.0.0.2`, `10.0.0.4` | UDP/TCP | ~16,300 pkts/s | Proves flow-level granularity: legit stream passes, attack dropped from same IP. |
+| **8** | High-Port UDP Flood | `10.0.0.7` | UDP :8080 | ~11,400 pkts/s | Amplification flood simulation on high service port. |
+| **9** | Legitimate Streams | `10.0.0.1`, `11`, `12` | :5001, :80, :53 | ~1,315 pkts/s total | Baseline safe traffic passing through Priority 10 FORWARD rules. |
+
+### Running the Python Dynamic Traffic Generator Directly
+```bash
+# Botnet mode with mixed traffic and pulsing wave
+sudo python3 network/dynamic_traffic_suite.py --mode botnet
+
+# Same-IP mixed traffic mode
+sudo python3 network/dynamic_traffic_suite.py --mode mixed_same_ip
+
+# Pure legitimate traffic baseline
+sudo python3 network/dynamic_traffic_suite.py --mode legit_only
+```
+
+---
 
 ```mermaid
 sequenceDiagram
@@ -359,12 +456,12 @@ mininet> h2 pkill -9 hping3
 
 At any point you can see a human-readable breakdown of every OpenFlow rule:
 ```bash
-curl http://192.168.8.147:5000/api/flow-table
+curl http://171.171.1.253:5000/api/flow-table
 ```
 
 This returns:
-- **ALLOWED flows** — which IPs are being forwarded and why
-- **BLOCKED flows** — which IPs have DROP rules and why
+- **ALLOWED flows** — which IPs/ports are being forwarded and why
+- **BLOCKED flows** — which IPs/ports have DROP rules and why
 - **Table-miss rule** — how unknown flows are handled (sent to controller for MAC learning)
 
 ---
@@ -372,19 +469,19 @@ This returns:
 ## 🛑 Clean Shutdown
 
 ```bash
-# 1. Stop attack (if running) — Ctrl+C in xterm h2
-# 2. Stop legitimate traffic and its current iperf client from the Mininet CLI
-mininet> h1 pkill -f '[l]egit_traffic.sh' || true
-mininet> h1 pkill -f '[i]perf -c 10.0.0.3' || true
+# 1. Stop attacks — Option [10] in attack_menu.sh or Ctrl+C
+# 2. Stop all traffic — Option [11] in attack_menu.sh
 # 3. Exit Mininet
 mininet> exit
+# or in botnet topology
+botnet> exit
 
 # 4. Clean OVS state
 sudo mn -c
 
 # 5. Ctrl+C in Terminal 2 (Flask)
 # 6. Ctrl+C in Terminal 1 (Ryu)
-# 7. Ctrl+C in Windows terminal (React)
+# 7. Ctrl+C in Dashboard terminal (React)
 ```
 
 ---
@@ -402,34 +499,41 @@ sudo mn -c
 | `ImportError: cannot import ALREADY_HANDLED` | eventlet version too new | `pip install eventlet==0.30.2` |
 | `ModuleNotFoundError: filelock` | Missing dependency | `pip install filelock` inside activated venv |
 | `get_script_args` error on `pip install ryu` | setuptools too new | `pip install setuptools==59.6.0 wheel==0.37.1` first |
-| Attack not detected (no DROP rule) | Switch connection, traffic rate, or model result | Check Ryu registered the switch, inspect `ovs-ofctl dump-flows s1`, and confirm the attack source exceeds the 10,000 PPS fallback threshold |
+| Attack not detected (no DROP rule) | Switch connection, traffic rate, or model result | Check Ryu registered the switch, inspect `ovs-ofctl dump-flows s1`, and confirm the attack source exceeds benign thresholds |
 | Blocked row disappears unexpectedly | Switch flow removal event or controller restart | The controller now removes a blocked row when OVS reports rule removal; a controller restart clears its in-memory block list |
-| `xterm h2` window does not open | No display in VM | Use VMware with a desktop session, or launch the attack from Mininet with `h2 hping3 --flood --udp -p 80 10.0.0.3` |
+| `xterm h2` window does not open | No display in VM | Use the interactive attack menu directly: `sudo bash network/attack_menu.sh` |
 
 ---
 
 ## 📡 Network & Config Reference
 
-### Mininet Hosts
-| Host | IP | MAC | Role |
-|------|----|-----|------|
-| h1 | `10.0.0.1` | `00:00:00:00:00:01` | Legitimate User |
-| h2 | `10.0.0.2` | `00:00:00:00:00:02` | Attacker |
-| h3 | `10.0.0.3` | `00:00:00:00:00:03` | Server (iperf target) |
-| s1 | — | — | OVS Switch (OpenFlow 1.3) |
+### Mininet Hosts (Botnet Topology)
+| Host | IP | MAC | Role | Traffic Profiles |
+|------|----|-----|------|------------------|
+| h1 | `10.0.0.1` | `00:00:00:00:00:01` | Pure Legit Client | UDP stream :5001 (~820 pkts/s) |
+| h11 | `10.0.0.11` | `00:00:00:00:00:0b` | Pure Legit Client | HTTP web :80 (~310 pkts/s) |
+| h12 | `10.0.0.12` | `00:00:00:00:00:0c` | Pure Legit Client | DNS queries :53 (~185 pkts/s) |
+| h2 | `10.0.0.2` | `00:00:00:00:00:02` | Mixed Node | Volumetric UDP flood :80 (~9.5k PPS) + Legit :5001 (~440 PPS) |
+| h4 | `10.0.0.4` | `00:00:00:00:00:04` | Mixed Node | TCP SYN flood :80 (~6.8k PPS) + Legit DNS :53 (~230 PPS) |
+| h5 | `10.0.0.5` | `00:00:00:00:00:05` | Attacker | Slowloris HTTP starvation :80 (~45 PPS) |
+| h6 | `10.0.0.6` | `00:00:00:00:00:06` | Attacker | High-Rate ICMP Echo Flood (~5.2k PPS) |
+| h7 | `10.0.0.7` | `00:00:00:00:00:07` | Attacker | High-Port UDP Flood :8080 (~11.4k PPS) |
+| h8 | `10.0.0.8` | `00:00:00:00:00:08` | Attacker | Pulsing Wave DDoS (10s ON ~7.6k PPS / 5s OFF 0 PPS on :53) |
+| h3 | `10.0.0.3` | `00:00:00:00:00:03` | Protected Server | HTTP (:80, :8080), iperf UDP (:5001), DNS (:53) |
+| s1 | — | — | OVS Switch | OpenFlow 1.3 Datapath |
 
 ### Service Addresses
 | Service | Address | Notes |
 |---------|---------|-------|
 | Ryu Controller | `127.0.0.1:6653` | Listens for OVS switch connections |
-| Flask API | `0.0.0.0:5000` | Accessible from Windows at `192.168.8.147:5000` |
-| React Dashboard | `localhost:5173` | Runs on Windows only |
-| Ubuntu VM | `192.168.8.147` | Your VMware VM IP (verify with `hostname -I`) |
+| Flask API | `0.0.0.0:5000` | Accessible at `http://171.171.1.253:5000` |
+| React Dashboard | `http://171.171.1.253:5173` | Accessible from browser on VM or LAN |
+| Ubuntu VM | `171.171.1.253` | Current VMware VM IP (verify with `hostname -I`) |
 
 ### Key API Endpoints
 | Endpoint | What it returns |
 |----------|----------------|
-| `GET /api/network-stats` | Full telemetry snapshot for the dashboard chart |
+| `GET /api/network-stats` | Full telemetry snapshot for dashboard (ipTraffic, exact sums, metrics) |
 | `GET /api/health` | Simple liveness check |
 | `GET /api/flow-table` | Human-readable ALLOWED vs BLOCKED flow breakdown |
 
@@ -444,7 +548,7 @@ source ryu39_env/bin/activate
 # Ubuntu — pull latest code
 git pull
 
-# Ubuntu — clean leftover Mininet state (run before every topo.py)
+# Ubuntu — clean leftover Mininet state (run before every topo)
 sudo mn -c
 
 # Ubuntu — start Ryu controller
@@ -453,37 +557,25 @@ ryu-manager controller/simple_monitor.py
 # Ubuntu — start Flask API (from inside backend_api/)
 cd backend_api && python3 app.py
 
-# Ubuntu — start Mininet
-sudo python3 network/topo.py
+# Ubuntu — start Botnet Mininet Topology (10 hosts)
+sudo python3 network/topo_botnet.py
 
-# Mininet CLI — run legitimate traffic from h1
-h1 bash network/legit_traffic.sh &
+# Ubuntu — launch Interactive Attack Menu
+sudo bash network/attack_menu.sh
 
-# Mininet CLI — launch attack from h2
-h2 bash network/attack_traffic.sh
+# Ubuntu — launch Dynamic Traffic Generation Suite directly
+sudo python3 network/dynamic_traffic_suite.py --mode botnet
 
-# Run Comprehensive ML Model Accuracy & Health Audit (Windows / Ubuntu)
+# Run Comprehensive ML Model Accuracy & Health Audit
 python3 controller/test_model_accuracy.py
-# (or on Windows)
-py controller/test_model_accuracy.py
 
-# Run Automated Unit Test Suite
-python3 -m unittest tests/test_ml_engine.py
-# (or on Windows)
-py -m unittest tests/test_ml_engine.py
+# Run Automated Unit Test Suite (24 tests)
+python3 -m unittest discover tests -v
 
-# Mininet CLI — open attacker terminal
-xterm h2
+# Any machine — query telemetry API
+curl http://171.171.1.253:5000/api/network-stats
+curl http://171.171.1.253:5000/api/flow-table
 
-# Inside xterm h2 — launch DDoS attack
-sudo hping3 --flood --udp -p 80 10.0.0.3
-
-# Mininet CLI — check switch flow table
-sh ovs-ofctl dump-flows s1
-
-# Any machine — see allowed vs blocked flows in plain English
-curl http://192.168.8.147:5000/api/flow-table
-
-# Windows — start React dashboard
+# Start React dashboard
 npm run dev
 ```
