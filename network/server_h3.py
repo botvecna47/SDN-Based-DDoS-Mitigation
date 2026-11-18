@@ -94,6 +94,10 @@ def main():
     t_udp53 = threading.Thread(target=run_udp_responder, args=(53,), daemon=True)
     t_udp53.start()
 
+    # Launch UDP responder on port 5001 (Primary streaming port for h1 & h2)
+    t_udp5001 = threading.Thread(target=run_udp_responder, args=(5001,), daemon=True)
+    t_udp5001.start()
+
     # Launch UDP responder on port 5002 (Secondary stream)
     t_udp5002 = threading.Thread(target=run_udp_responder, args=(5002,), daemon=True)
     t_udp5002.start()

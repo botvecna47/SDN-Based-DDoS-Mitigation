@@ -246,6 +246,12 @@ def main():
     print(f" Selected Mode : {args.mode.upper()}")
     print("=" * 76)
 
+    if os.geteuid() != 0 and not can_sudo_non_interactive():
+        print("\n[!] NOTICE: Packet generation with hping3 requires root privileges.")
+        print(f"    Please execute with sudo: sudo python3 network/dynamic_traffic_suite.py --mode {args.mode}")
+        print("=" * 76)
+        sys.exit(1)
+
     spawn_legitimate_users()
 
     if args.mode != "legit_only":

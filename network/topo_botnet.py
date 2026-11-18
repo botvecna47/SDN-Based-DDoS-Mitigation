@@ -30,18 +30,21 @@ from mininet.node import RemoteController, OVSKernelSwitch
 from mininet.cli import CLI
 from mininet.log import setLogLevel, info
 
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+SERVER_SCRIPT = os.path.join(SCRIPT_DIR, 'server_h3.py')
+SLOWLORIS_SCRIPT = os.path.join(SCRIPT_DIR, 'slowloris.py')
+
 def cleanup_stale():
     """Removes stale veth interfaces and switch bridges to prevent RTNETLINK File exists errors."""
     info('*** Auto-cleaning stale virtual interfaces and switch bridges...\n')
     os.system("ovs-vsctl --if-exists del-br s1 2>/dev/null")
     os.system("ip link show | grep -oE '(s1-eth[0-9]+|h[0-9]+-eth[0-9]+)' | xargs -r -n 1 ip link delete 2>/dev/null")
-    os.system("pkill -9 -f 'iperf -s' 2>/dev/null")
-    os.system("pkill -9 -f 'iperf -c' 2>/dev/null")
+    os.system("pkill -9 -f 'iperf' 2>/dev/null")
     os.system("pkill -9 -f 'server_h3.py' 2>/dev/null")
     os.system("pkill -9 -f 'http.server' 2>/dev/null")
     os.system("pkill -9 -f 'hping3' 2>/dev/null")
     os.system("pkill -9 -f 'slowloris' 2>/dev/null")
-    os.system("pkill -9 -f 'pulse_h8.sh' 2>/dev/null")
+    os.system("pkill -9 -f 'pulse_h8' 2>/dev/null")
 
 class BotnetCLI(CLI):
     prompt = 'mininet-botnet> '
@@ -66,7 +69,7 @@ class BotnetCLI(CLI):
         
         # h5: Slowloris HTTP Starvation
         info('    -> h5 (10.0.0.5): Slowloris HTTP Starvation (:80 @ ~45 PPS)\n')
-        self.mn.get('h5').cmd('python3 network/slowloris.py 10.0.0.3 80 90 --src-ip 10.0.0.5 >/dev/null 2>&1 &')
+        self.mn.get('h5').cmd(f'python3 {SLOWLORIS_SCRIPT} 10.0.0.3 80 90 --src-ip 10.0.0.5 >/dev/null 2>&1 &')
         
         # h6: ICMP Echo Flood
         info('    -> h6 (10.0.0.6): High-Rate ICMP Echo Flood (@ ~5,200 PPS)\n')
@@ -122,8 +125,9 @@ class BotnetCLI(CLI):
         
         # h11: Legitimate HTTP web traffic to port 80 (~310 PPS)
         h11 = self.mn.get('h11')
+        h11.cmd('pkill -9 -f curl 2>/dev/null')
         h11.cmd('pkill -9 -f hping3 2>/dev/null')
-        h11.cmd('hping3 -i u3225 -S -p 80 10.0.0.3 >/dev/null 2>&1 &')
+        h11.cmd('while true; do curl -s -m 1 http://10.0.0.3/ >/dev/null 2>&1; sleep 0.003; done &')
 
         # h12: Legitimate DNS query traffic to port 53 (~185 PPS)
         h12 = self.mn.get('h12')
@@ -193,19 +197,21 @@ def create_botnet_network():
     info('*** Starting network\n')
     net.start()
 
-    info('*** Starting target services on h3 (iperf UDP 5001 + multi-threaded HTTP/UDP server)\n')
-    h3.cmd('iperf -s -u -p 5001 &')
-    h3.cmd('python3 network/server_h3.py >/dev/null 2>&1 &')
+    info('*** Starting target services on h3 (multi-threaded HTTP/UDP server)\n')
+    h3.cmd(f'python3 {SERVER_SCRIPT} >/dev/null 2>&1 &')
+    h3.cmd('iperf -s -u -p 5001 >/dev/null 2>&1 &')
     
-    info('*** Bootstrapping ARP/MAC learning across all 10 nodes\n')
-    net.pingAll()
+    # Fast ARP learning: ping each host to h3 directly (< 0.5s instead of 20s for pingAll)
+    info('*** Quick ARP/MAC learning (all hosts -> target server h3)...\n')
+    for h in [h1, h11, h12] + list(botnet.values()):
+        net.ping([h, h3])
     info('*** Botnet network is fully initialized and ready.\n')
     info('*** Hosts active: Server (h3), Pure Legit (h1, h11, h12), Mixed/Attackers (h2, h4, h5, h6, h7, h8)\n')
     
     # Start pure legitimate user streams by default
     info('*** Bootstrapping baseline legitimate user streams...\n')
     h1.cmd('hping3 -i u1220 --udp -p 5001 10.0.0.3 >/dev/null 2>&1 &')
-    h11.cmd('hping3 -i u3225 -S -p 80 10.0.0.3 >/dev/null 2>&1 &')
+    h11.cmd('while true; do curl -s -m 1 http://10.0.0.3/ >/dev/null 2>&1; sleep 0.003; done &')
     h12.cmd('hping3 -i u5400 --udp -p 53 10.0.0.3 >/dev/null 2>&1 &')
     info('    • h1  (10.0.0.1)  -> 10.0.0.3:5001 [UDP Stream] (~820 PPS)\n')
     info('    • h11 (10.0.0.11) -> 10.0.0.3:80   [HTTP Web]    (~310 PPS)\n')
@@ -222,13 +228,23 @@ def create_botnet_network():
     info('  • pingall     : Test ping connectivity across all 10 nodes\n')
     info('========================================================================\n\n')
 
+    auto_attack = ('--attack' in sys.argv or '--botnet' in sys.argv or '-a' in sys.argv)
     try:
-        BotnetCLI(net)
+        cli = BotnetCLI(net)
+        if auto_attack:
+            info('\n*** [--attack flag detected] Auto-launching coordinated multi-vector botnet assault...\n')
+            cli.do_botnet('')
+            info('*** Multi-vector botnet assault is ACTIVE! Press Ctrl+C anytime to stop.\n')
+            while True:
+                time.sleep(1.0)
+    except (KeyboardInterrupt, EOFError):
+        pass
     finally:
         info('*** Stopping network and cleaning up...\n')
         for h in [h1, h11, h12]:
             h.cmd('pkill -9 -f "iperf" 2>/dev/null')
             h.cmd('pkill -9 -f "hping3" 2>/dev/null')
+            h.cmd('pkill -9 -f "curl" 2>/dev/null')
         h3.cmd('pkill -9 -f "server_h3" 2>/dev/null')
         h3.cmd('pkill -9 -f "iperf" 2>/dev/null')
         for b in botnet.values():
