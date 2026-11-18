@@ -127,12 +127,12 @@ function TrafficChart({
         <svg viewBox="0 0 1000 250" preserveAspectRatio="none" className="h-full w-full overflow-visible" role="img" aria-label="Traffic history chart">
           <defs>
             <linearGradient id="ingressFill" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stopColor="#2563eb" stopOpacity="0.14" />
-              <stop offset="100%" stopColor="#2563eb" stopOpacity="0.0" />
+              <stop offset="0%" stopColor="#334155" stopOpacity="0.10" />
+              <stop offset="100%" stopColor="#334155" stopOpacity="0.0" />
             </linearGradient>
             <linearGradient id="droppedFill" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stopColor="#e11d48" stopOpacity="0.22" />
-              <stop offset="100%" stopColor="#e11d48" stopOpacity="0.0" />
+              <stop offset="0%" stopColor="#dc2626" stopOpacity="0.18" />
+              <stop offset="100%" stopColor="#dc2626" stopOpacity="0.0" />
             </linearGradient>
           </defs>
 
@@ -144,38 +144,38 @@ function TrafficChart({
             </g>
           ))}
 
-          {/* Anomaly Limit Threshold Line */}
+          {/* Traffic Baseline & Anomaly Limit Line (Neutral Slate Dashed) */}
           <line
             x1="45"
             x2="980"
             y1={220 - traffic.threshold / ceiling * 190}
             y2={220 - traffic.threshold / ceiling * 190}
-            stroke="#f97316"
+            stroke="#64748b"
             strokeWidth="1.5"
-            strokeDasharray="5 5"
+            strokeDasharray="4 4"
           />
 
-          {/* 1. Dropped Area Fill & Line (Rose/Red) */}
+          {/* 1. Dropped Hostile Traffic Area & Line (Crimson Red) */}
           <path d={`${droppedPath} L 980 220 L 45 220 Z`} fill="url(#droppedFill)" />
-          <path d={droppedPath} fill="none" stroke="#e11d48" strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
+          <path d={droppedPath} fill="none" stroke="#dc2626" strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
 
-          {/* 2. Total Ingress Area Fill & Line (Blue) */}
+          {/* 2. Total Ingress Volume Area & Line (Slate Charcoal) */}
           <path d={`${ingressPath} L 980 220 L 45 220 Z`} fill="url(#ingressFill)" />
-          <path d={ingressPath} fill="none" stroke="#2563eb" strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
+          <path d={ingressPath} fill="none" stroke="#334155" strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
 
-          {/* 3. Clean Forwarded Line (Green) */}
-          <path d={forwardedPath} fill="none" stroke="#10b981" strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
+          {/* 3. Clean Verified Throughput Line (Emerald Green) */}
+          <path d={forwardedPath} fill="none" stroke="#059669" strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
 
           {/* Interactive Inspection Cursor */}
           {activeHover !== null && (
             <>
               <line x1={x} x2={x} y1="20" y2="220" stroke="#94a3b8" strokeDasharray="3 3" />
-              <circle cx={x} cy={y} r="5" fill="#2563eb" stroke="#ffffff" strokeWidth="2.5" />
+              <circle cx={x} cy={y} r="5" fill="#0f172a" stroke="#ffffff" strokeWidth="2.5" />
             </>
           )}
         </svg>
 
-        {/* Enhanced Multi-Metric Tooltip */}
+        {/* Enhanced Multi-Metric Tooltip (Strict 3 Colors) */}
         {activeHover !== null && (
           <div
             className="pointer-events-none absolute z-30 rounded-xl border border-slate-700 bg-slate-900/95 p-3.5 text-sm text-white shadow-2xl backdrop-blur-sm"
@@ -187,24 +187,24 @@ function TrafficChart({
           >
             <div className="flex items-center justify-between border-b border-slate-700/80 pb-1.5 text-xs text-slate-400">
               <span className="mono tabular-nums">{ingress.length - 1 - activeHover}s ago</span>
-              <span className="font-semibold text-slate-300">{source === 'demo' ? 'Simulation Step' : 'Switch s1 Telemetry'}</span>
+              <span className="font-semibold text-slate-300">{source === 'demo' ? 'Simulation Time' : 'Switch Telemetry'}</span>
             </div>
             <div className="mt-2.5 space-y-1.5 text-xs sm:text-sm">
               <div className="flex items-center justify-between gap-5">
-                <span className="flex items-center gap-1.5 text-blue-400 font-medium">
-                  <span className="size-2 rounded-full bg-blue-500" /> Total Incoming:
+                <span className="flex items-center gap-1.5 text-slate-300 font-medium">
+                  <span className="size-2 rounded-full bg-slate-400" /> Total Incoming Traffic:
                 </span>
                 <span className="font-bold mono tabular-nums text-white">{hoverIngressPps.toLocaleString()} pkts/s</span>
               </div>
               <div className="flex items-center justify-between gap-5">
-                <span className="flex items-center gap-1.5 text-rose-400 font-medium">
-                  <span className="size-2 rounded-full bg-rose-500" /> Blocked / Dropped:
+                <span className="flex items-center gap-1.5 text-red-400 font-medium">
+                  <span className="size-2 rounded-full bg-red-500" /> Malicious Blocked:
                 </span>
-                <span className="font-bold mono tabular-nums text-rose-300">{hoverDroppedPps.toLocaleString()} pkts/s</span>
+                <span className="font-bold mono tabular-nums text-red-300">{hoverDroppedPps.toLocaleString()} pkts/s</span>
               </div>
               <div className="flex items-center justify-between gap-5">
                 <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
-                  <span className="size-2 rounded-full bg-emerald-500" /> Clean Forwarded:
+                  <span className="size-2 rounded-full bg-emerald-500" /> Clean Delivered:
                 </span>
                 <span className="font-bold mono tabular-nums text-emerald-300">{hoverForwardedPps.toLocaleString()} pkts/s</span>
               </div>
@@ -213,8 +213,8 @@ function TrafficChart({
               </div>
               {hoverDroppedPps > 0 && (
                 <div className="flex items-center justify-between text-xs text-slate-300">
-                  <span>Mitigation Efficiency:</span>
-                  <span className="font-bold text-rose-400 mono tabular-nums">{hoverDropPercent}% dropped</span>
+                  <span>Attack Block Efficiency:</span>
+                  <span className="font-bold text-red-400 mono tabular-nums">{hoverDropPercent}% neutralized</span>
                 </div>
               )}
             </div>
@@ -233,49 +233,8 @@ function TrafficChart({
   )
 }
 
-function MetricCard({
-  label,
-  value,
-  unit,
-  detail,
-  badge,
-  badgeType = 'neutral'
-}: {
-  label: string
-  value: string
-  unit?: string
-  detail: string
-  badge?: string
-  badgeType?: 'danger' | 'success' | 'warning' | 'neutral'
-}) {
-  const badgeStyles = {
-    danger: 'bg-rose-100 text-rose-800 border-rose-200',
-    success: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-    warning: 'bg-amber-100 text-amber-800 border-amber-200',
-    neutral: 'bg-slate-100 text-slate-700 border-slate-200'
-  }
-
-  return (
-    <div className="panel-card p-6 sm:p-7 flex flex-col justify-between">
-      <div className="flex items-center justify-between gap-2">
-        <div className="text-xs sm:text-sm font-semibold uppercase tracking-wider text-slate-500 text-balance">{label}</div>
-        {badge && (
-          <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold border tabular-nums ${badgeStyles[badgeType]}`}>
-            {badge}
-          </span>
-        )}
-      </div>
-      <div className="mt-3 flex items-baseline gap-2">
-        <span className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 mono tabular-nums">{value}</span>
-        {unit && <span className="text-sm font-semibold text-slate-500">{unit}</span>}
-      </div>
-      <div className="mt-3 text-xs sm:text-sm text-slate-500 leading-normal text-pretty">{detail}</div>
-    </div>
-  )
-}
-
 function exportCsv(rows: IpTrafficEntry[]) {
-  const fields = ['Source IP', 'Host Node', 'Status', 'Passed (pkts/s)', 'Blocked (pkts/s)', 'Total Ingress (pkts/s)', 'Allowed Flow Vectors', 'Blocked Flow Vectors', 'Mitigation Reason']
+  const fields = ['Source IP', 'Device Identity', 'Status', 'Passed (pkts/s)', 'Blocked (pkts/s)', 'Total Ingress (pkts/s)', 'Allowed Flow Vectors', 'Blocked Flow Vectors', 'Autonomous Mitigation Reason']
   const csv = [
     fields,
     ...rows.map(row => [
@@ -297,6 +256,34 @@ function exportCsv(rows: IpTrafficEntry[]) {
   link.download = `sdn-ddos-traffic-analysis-${Date.now()}.csv`
   link.click()
   window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+function formatFlowVector(protocol: string, dstPort: number, isAttack: boolean, attackType?: string): string {
+  const p = (protocol || 'IP').toUpperCase()
+  if (!isAttack) {
+    if (p === 'UDP' && dstPort === 5001) return 'Live Video Stream (UDP :5001)'
+    if (p === 'TCP' && (dstPort === 80 || dstPort === 8080)) return 'Standard Web Traffic (TCP :80)'
+    if (p === 'UDP' && dstPort === 53) return 'Standard DNS Queries (UDP :53)'
+    if (p === 'ICMP') return 'Ping Echo Check (ICMP)'
+    return `Legitimate Flow (${p} :${dstPort})`
+  }
+
+  // Attack vectors
+  if (attackType) {
+    const a = attackType.toLowerCase()
+    if (a.includes('slow')) return 'Slow Socket Starvation (Slowloris :80)'
+    if (a.includes('syn')) return 'Connection Flood (TCP SYN :80)'
+    if (a.includes('icmp')) return 'Ping Echo Flood (ICMP)'
+    if (a.includes('high port') || dstPort === 8080) return 'High-Port Flood (UDP :8080)'
+    if (a.includes('pulse') || a.includes('wave')) return 'Pulsing Wave Attack (UDP :53)'
+  }
+  if (p === 'UDP' && dstPort === 80) return 'Fake Web Flood (UDP :80)'
+  if (p === 'TCP' && dstPort === 80) return 'Connection Overload (TCP SYN :80)'
+  if (p === 'ICMP') return 'Ping Echo Flood (ICMP Echo)'
+  if (p === 'UDP' && dstPort === 53) return 'DNS Query Overload (UDP :53)'
+  if (p === 'UDP' && dstPort === 8080) return 'High-Port Amplification (UDP :8080)'
+
+  return `${attackType || 'Malicious Flood'} (${p} :${dstPort})`
 }
 
 type DemoMode = 'normal' | 'attack' | 'idle' | 'loading' | 'error'
@@ -541,8 +528,9 @@ export default function App() {
   const navItems = [
     { label: 'Overview', target: 'overview' },
     { label: 'Live Traffic', target: 'traffic' },
-    { label: 'How It Works', target: 'how-it-works' },
-    { label: 'Per-IP Defense', target: 'threats' },
+    { label: 'Terms Decoded', target: 'glossary' },
+    { label: 'How Defense Works', target: 'how-it-works' },
+    { label: 'Host Traffic & Defense', target: 'threats' },
   ]
 
   return (
@@ -588,8 +576,8 @@ export default function App() {
               className={`flex items-center justify-between rounded-xl px-4 py-3 text-sm sm:text-base font-medium transition-colors ${activeNav === item.label ? 'bg-slate-100 text-slate-900 font-semibold' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
             >
               <span>{item.label}</span>
-              {item.label === 'Per-IP Defense' && data && data.threats.length > 0 && (
-                <span className="rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-bold text-rose-700 tabular-nums">
+              {item.label === 'Host Traffic & Defense' && data && data.threats.length > 0 && (
+                <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-bold text-red-700 tabular-nums">
                   <span className="sr-only">Active threats: </span>
                   {data.threats.length}
                 </span>
@@ -601,7 +589,7 @@ export default function App() {
         {/* Connection Status Card */}
         <div className="mt-auto rounded-xl border border-slate-200 bg-slate-50 p-4">
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-            <span className={`size-2.5 rounded-full ${source === 'live' ? 'bg-emerald-500' : 'bg-blue-500'}`} />
+            <span className={`size-2.5 rounded-full ${source === 'live' ? 'bg-emerald-500' : 'bg-slate-700'}`} />
             {source === 'live' ? 'Connected to Controller' : 'Interactive Demo Mode'}
           </div>
           <div className="mt-1 text-xs text-slate-500">
@@ -618,8 +606,8 @@ export default function App() {
             <button className="flex size-9 items-center justify-center rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 lg:hidden" aria-label="Open menu" onClick={() => setMobileMenu(true)}>
               <Icon name="menu" size={22} />
             </button>
-            <span className="text-sm font-medium text-slate-400">Mininet Network <span className="mx-1.5">/</span></span>
-            <span className="text-sm font-semibold text-slate-800">SDN Traffic &amp; DDoS Defense</span>
+            <span className="text-sm font-medium text-slate-400">Campus Network <span className="mx-1.5">/</span></span>
+            <span className="text-sm font-semibold text-slate-800">SDN Traffic &amp; Autonomous Defense</span>
           </div>
 
           <div className="flex items-center gap-3">
@@ -647,12 +635,12 @@ export default function App() {
                   onClick={toggleDemoAttack}
                   className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs sm:text-sm font-semibold shadow-sm transition-all enabled:active:scale-[0.97] motion-reduce:enabled:active:scale-100 ${
                     isDemoAttacking
-                      ? 'bg-rose-600 text-white hover:bg-rose-700 shadow-rose-200'
+                      ? 'bg-red-600 text-white hover:bg-red-700 shadow-red-200'
                       : 'bg-slate-900 text-white hover:bg-slate-800'
                   }`}
                 >
                   <Icon name={isDemoAttacking ? 'pause' : 'play'} size={14} />
-                  {isDemoAttacking ? 'Stop Attack' : 'Simulate DDoS Attack'}
+                  {isDemoAttacking ? 'Halt Attack Simulation' : 'Simulate DDoS Attack'}
                 </button>
 
                 {hasDemoRetainedThreat && (
@@ -713,7 +701,7 @@ export default function App() {
             </div>
           ) : failed ? (
             <div className="panel-card mt-8 p-12 text-center">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-rose-100 text-rose-600">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600">
                 <Icon name="alert" size={24} />
               </div>
               <h2 className="mt-4 text-xl font-bold text-slate-900">Could not connect to telemetry API</h2>
@@ -731,115 +719,170 @@ export default function App() {
             </div>
           ) : data && (
             <>
-              {/* TOP SECTION: Prominent Full-Width Status Banner */}
+              {/* TOP SECTION: Prominent Operational Posture Banner */}
               <div className={`panel-card mt-8 sm:mt-10 p-6 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6 border-l-4 ${
                 underAttack
-                  ? 'border-l-rose-500 bg-rose-50/50 border-rose-200'
+                  ? 'border-l-red-600 bg-red-50/70 border-red-200'
                   : offline
-                    ? 'border-l-slate-400 bg-slate-100/60 border-slate-200'
+                    ? 'border-l-slate-400 bg-slate-100/70 border-slate-200'
                     : isThreatBlocked
-                      ? 'border-l-amber-500 bg-amber-50/50 border-amber-200'
-                      : 'border-l-emerald-500 bg-emerald-50/40 border-emerald-200'
+                      ? 'border-l-slate-500 bg-slate-50/90 border-slate-200'
+                      : 'border-l-emerald-600 bg-emerald-50/60 border-emerald-200'
               }`}>
                 <div>
                   <div className="flex items-center gap-2.5">
-                    <span className={`size-3 rounded-full ${underAttack ? 'bg-rose-500 animate-ping' : offline ? 'bg-slate-400' : isThreatBlocked ? 'bg-amber-500' : 'bg-emerald-500'}`} />
-                    <span className={`text-xs sm:text-sm font-bold uppercase tracking-wider ${underAttack ? 'text-rose-700' : offline ? 'text-slate-600' : isThreatBlocked ? 'text-amber-800' : 'text-emerald-700'}`}>
+                    <span className={`size-3 rounded-full ${underAttack ? 'bg-red-600 animate-ping' : offline ? 'bg-slate-400' : isThreatBlocked ? 'bg-slate-600' : 'bg-emerald-600'}`} />
+                    <span className={`text-xs sm:text-sm font-bold uppercase tracking-wider ${underAttack ? 'text-red-700' : offline ? 'text-slate-600' : isThreatBlocked ? 'text-slate-700' : 'text-emerald-700'}`}>
                       {underAttack
-                        ? 'DDoS Attack Detected · Autonomous Mitigation Active'
+                        ? 'DDoS Attack In Progress · Line-Rate Mitigation Active'
                         : offline
-                          ? 'Mininet Switch Offline'
+                          ? 'Mininet Virtual Switch Offline'
                           : isThreatBlocked
-                            ? 'Attack Mitigated · OpenFlow Rule Retained'
+                            ? 'Attack Mitigated · Hardware Protective Rule Retained'
                             : noTraffic
                               ? 'Switch Connected · Idle'
-                              : 'Network Operating Normally'}
+                              : 'All Network Flows Verified · Normal Operation'}
                     </span>
                   </div>
                   <h2 className="mt-2 text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 text-balance">
                     {underAttack
-                      ? 'Malicious Traffic Intercepted & Being Dropped'
+                      ? 'Malicious Traffic Intercepted & Being Filtered At Switch'
                       : offline
-                        ? 'Waiting for Ryu and Mininet Telemetry'
+                        ? 'Waiting for Telemetry from Controller & Switch'
                         : isThreatBlocked
-                          ? 'Attacker Dropped · Legitimate Users Uninterrupted'
+                          ? 'Attacker Blocked · Legitimate User Traffic Protected'
                           : empty || noTraffic
                             ? 'Waiting for Network Traffic'
-                            : 'All Network Flows Safe & Verified'}
+                            : 'Protected & Operational · Clean User Traffic Passing'}
                   </h2>
                   <p className="mt-2 max-w-3xl text-sm sm:text-base text-slate-600 leading-relaxed text-pretty">
                     {underAttack
-                      ? 'High-volume packet flood detected from host h2 (10.0.0.2). Open vSwitch s1 has installed a Priority 65535 DROP rule. Malicious packets are discarded at the switch port while legitimate user h1 traffic continues unaffected.'
+                      ? 'Hostile packet flood detected from infected devices targeting the protected server (10.0.0.3). Open vSwitch s1 has installed Priority 65535 DROP rules to discard junk packets at line rate on the switch port. Genuine video streams and web requests continue flowing without lag.'
                       : isThreatBlocked
-                        ? 'The flood has halted. The attacker remains blocked under OpenFlow idle timeout policy to protect the server from renewed bursts.'
+                        ? 'The flood burst has stopped. The hardware drop rule is retained during the idle timeout period to protect the server from renewed wave bursts.'
                         : offline
-                          ? 'The telemetry API is reachable, but no recent OpenFlow statistics are arriving from switch s1. Start Ryu and Mininet to connect live telemetry.'
-                          : 'Ryu controller is monitoring switch s1 every second. Traffic from legitimate user host h1 is flowing smoothly to server h3.'}
+                          ? 'The telemetry API is reachable, but no statistics are arriving from switch s1. Start Ryu controller and Mininet to connect live telemetry.'
+                          : 'The SDN controller is monitoring switch flow tables every second. Legitimate video streams, web visits, and DNS queries are flowing freely to the protected server.'}
                   </p>
                 </div>
 
                 <div className="flex md:flex-col items-center md:items-end justify-between gap-2.5 border-t md:border-t-0 md:border-l border-slate-200 pt-4 md:pt-0 md:pl-8 shrink-0">
-                  <div className="text-xs sm:text-sm font-medium text-slate-500">Switch Defense Policy</div>
-                  <div className={`text-sm sm:text-base font-bold px-3.5 py-1.5 rounded-full ${
+                  <div className="text-xs sm:text-sm font-medium text-slate-500">Switch Defense Rule</div>
+                  <div className={`text-sm sm:text-base font-bold px-3.5 py-1.5 rounded-full border ${
                     underAttack
-                      ? 'bg-rose-100 text-rose-800'
+                      ? 'bg-red-100 text-red-800 border-red-200'
                       : offline
-                        ? 'bg-slate-200 text-slate-700'
+                        ? 'bg-slate-200 text-slate-700 border-slate-300'
                         : isThreatBlocked
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-emerald-100 text-emerald-800'
+                          ? 'bg-slate-100 text-slate-800 border-slate-300'
+                          : 'bg-emerald-100 text-emerald-800 border-emerald-200'
                   }`}>
                     {underAttack
-                      ? 'ACTIVE DROP (Priority 65535)'
+                      ? 'ACTIVE HARDWARE DROP'
                       : isThreatBlocked
-                        ? 'RULE RETAINED (Priority 65535)'
+                        ? 'PROTECTIVE RULE RETAINED'
                         : offline
                           ? 'Waiting for Switch'
-                          : 'Normal Forwarding'}
+                          : 'CLEAN FORWARDING'}
                   </div>
                   <div className="text-xs sm:text-sm text-slate-500 mt-0.5">
-                    {source === 'demo' ? 'Autonomous SDN Controller Simulation' : `${data.endpointsOnline}/${data.endpointsTotal} Switch Telemetry Link`}
+                    {source === 'demo' ? 'Autonomous OpenFlow Controller Simulation' : `${data.endpointsOnline}/${data.endpointsTotal} Switch Telemetry Link`}
                   </div>
                 </div>
               </div>
 
-              {/* 4 BALANCED METRIC CARDS: Incoming, Dropped, Clean Forwarded, Defense Engine */}
-              <div className="mt-6 sm:mt-7 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-                <MetricCard
-                  label="Total Ingress Rate"
-                  value={currentIngressPps.toLocaleString()}
-                  unit="pkts/s"
-                  badge={underAttack ? 'Surge' : 'Normal'}
-                  badgeType={underAttack ? 'danger' : 'success'}
-                  detail="Total incoming packet volume reaching switch s1 per second"
-                />
-                <MetricCard
-                  label="Blocked / Dropped Rate"
-                  value={currentDroppedPps.toLocaleString()}
-                  unit="pkts/s"
-                  badge={currentDroppedPps > 0 ? `${dropPercentage}% Mitigated` : '0% Dropped'}
-                  badgeType={currentDroppedPps > 0 ? 'danger' : 'neutral'}
-                  detail={currentDroppedPps > 0 ? 'Malicious packets filtered at line-rate by Priority 65535 DROP rule' : 'No packets currently flagged for dropping'}
-                />
-                <MetricCard
-                  label="Clean Forwarded Traffic"
-                  value={currentForwardedPps.toLocaleString()}
-                  unit="pkts/s"
-                  badge="Protected"
-                  badgeType="success"
-                  detail="Legitimate packets allowed through switch s1 to destination server h3"
-                />
-                <MetricCard
-                  label="Defense Engine & Latency"
-                  value={`${data.metrics.mlLatencyMs < 1.0 ? data.metrics.mlLatencyMs.toFixed(2) : data.metrics.mlLatencyMs.toFixed(1)}`}
-                  unit="ms"
-                  badge={data.detectionMode === 'machine_learning' ? 'ML Active' : 'PPS Threshold'}
-                  badgeType={data.detectionMode === 'machine_learning' ? 'success' : 'neutral'}
-                  detail={data.detectionMode === 'machine_learning' ? 'CIC-DDoS2019 Decision Tree active (< 1.0 ms SLA)' : 'Per-flow threshold fallback (>10,000 pkts/s)'}
-                />
+              {/* OPERATIONAL TELEMETRY COCKPIT (Asymmetric 3-Segment Bento Layout) */}
+              <div className="mt-7 grid grid-cols-1 gap-5 lg:grid-cols-12">
+                {/* Segment 1: Main Traffic Split (Spans 6 cols on large screens) */}
+                <div className="panel-card p-6 sm:p-7 lg:col-span-6 flex flex-col justify-between">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-xs sm:text-sm font-semibold uppercase tracking-wider text-slate-500">
+                      Total Network Ingress Volume
+                    </div>
+                    <span className="rounded-full px-2.5 py-0.5 text-xs font-bold border border-slate-200 bg-slate-100 text-slate-700 tabular-nums">
+                      {underAttack ? 'Surge Ingress' : 'Calm Baseline'}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex items-baseline gap-2.5">
+                    <span className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 mono tabular-nums">
+                      {currentIngressPps.toLocaleString()}
+                    </span>
+                    <span className="text-sm font-semibold text-slate-500">pkts/s (packets per second)</span>
+                  </div>
+
+                  {/* Dual Traffic Allocation Bar (Delivered vs Blocked) */}
+                  <div className="mt-5 pt-4 border-t border-slate-100">
+                    <div className="flex items-center justify-between text-xs text-slate-600 mb-2 font-medium">
+                      <span className="flex items-center gap-1.5 text-emerald-700">
+                        <span className="size-2 rounded-full bg-emerald-600" />
+                        Clean Delivered: <strong className="mono tabular-nums text-slate-900">{currentForwardedPps.toLocaleString()}</strong> pkts/s
+                      </span>
+                      <span className="flex items-center gap-1.5 text-red-700">
+                        <span className="size-2 rounded-full bg-red-600" />
+                        Blocked Flood: <strong className="mono tabular-nums text-slate-900">{currentDroppedPps.toLocaleString()}</strong> pkts/s
+                      </span>
+                    </div>
+                    <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100 flex">
+                      <div
+                        className="h-full bg-emerald-500 transition-all duration-300"
+                        style={{ width: `${currentIngressPps > 0 ? (currentForwardedPps / currentIngressPps) * 100 : 100}%` }}
+                        title={`Clean Delivered: ${currentForwardedPps} pkts/s`}
+                      />
+                      <div
+                        className="h-full bg-red-600 transition-all duration-300"
+                        style={{ width: `${currentIngressPps > 0 ? (currentDroppedPps / currentIngressPps) * 100 : 0}%` }}
+                        title={`Blocked Flood: ${currentDroppedPps} pkts/s`}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Segment 2: Protection Line-Rate Efficiency (Spans 3 cols) */}
+                <div className="panel-card p-6 sm:p-7 lg:col-span-3 flex flex-col justify-between">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-xs sm:text-sm font-semibold uppercase tracking-wider text-slate-500">
+                      Mitigation Efficiency
+                    </div>
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold border tabular-nums ${currentDroppedPps > 0 ? 'bg-red-50 text-red-700 border-red-200' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
+                      {currentDroppedPps > 0 ? `${dropPercentage}% Blocked` : '0% Filtered'}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex items-baseline gap-2">
+                    <span className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 mono tabular-nums">
+                      {currentDroppedPps > 0 ? `${dropPercentage}%` : '100%'}
+                    </span>
+                    <span className="text-sm font-semibold text-slate-500">{currentDroppedPps > 0 ? 'filtered' : 'clean'}</span>
+                  </div>
+                  <div className="mt-3 text-xs sm:text-sm text-slate-500 leading-normal text-pretty">
+                    {currentDroppedPps > 0
+                      ? 'Malicious packets discarded in hardware on switch port before touching server CPU.'
+                      : 'All flows verified benign. No packets flagged for dropping.'}
+                  </div>
+                </div>
+
+                {/* Segment 3: AI Classification SLA & Latency (Spans 3 cols) */}
+                <div className="panel-card p-6 sm:p-7 lg:col-span-3 flex flex-col justify-between">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-xs sm:text-sm font-semibold uppercase tracking-wider text-slate-500">
+                      AI Decision Speed
+                    </div>
+                    <span className="rounded-full px-2.5 py-0.5 text-xs font-bold border tabular-nums bg-emerald-50 text-emerald-700 border-emerald-200">
+                      &lt; 1.0 ms SLA
+                    </span>
+                  </div>
+                  <div className="mt-3 flex items-baseline gap-2">
+                    <span className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 mono tabular-nums">
+                      {data.metrics.mlLatencyMs < 1.0 ? data.metrics.mlLatencyMs.toFixed(2) : data.metrics.mlLatencyMs.toFixed(1)}
+                    </span>
+                    <span className="text-sm font-semibold text-slate-500">ms</span>
+                  </div>
+                  <div className="mt-3 text-xs sm:text-sm text-slate-500 leading-normal text-pretty">
+                    CIC-DDoS2019 ML classification engine evaluates every flow under 0.5 ms without packet buffering lag.
+                  </div>
+                </div>
               </div>
 
-              {/* LIVE TRAFFIC CHART SECTION */}
+              {/* LIVE TRAFFIC CHART SECTION (Strict 3 Colors) */}
               <section id="traffic" className="panel-card mt-8 sm:mt-10 p-6 sm:p-8 scroll-mt-24">
                 <div className="flex flex-wrap items-center justify-between gap-5 border-b border-slate-100 pb-6">
                   <div>
@@ -857,24 +900,24 @@ export default function App() {
                     </p>
                   </div>
 
-                  {/* Real-time Numeric Stat Pills */}
+                  {/* Real-time Numeric Stat Pills (Strict 3 Colors) */}
                   <div className="flex flex-wrap items-center gap-3">
-                    <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-1.5 text-xs sm:text-sm font-semibold text-blue-800 border border-blue-200">
-                      <span className="size-2.5 rounded-full bg-blue-600" />
-                      <span>Incoming:</span>
-                      <span className="mono tabular-nums font-bold">{currentIngressPps.toLocaleString()} pkts/s</span>
+                    <div className="flex items-center gap-2 rounded-lg bg-slate-100 px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-slate-800 border border-slate-200">
+                      <span className="size-2.5 rounded-full bg-slate-700" />
+                      <span>Total Incoming:</span>
+                      <span className="mono tabular-nums font-bold text-slate-900">{currentIngressPps.toLocaleString()} pkts/s</span>
                     </div>
 
-                    <div className="flex items-center gap-2 rounded-lg bg-rose-50 px-3 py-1.5 text-xs sm:text-sm font-semibold text-rose-800 border border-rose-200">
-                      <span className="size-2.5 rounded-full bg-rose-600" />
-                      <span>Blocked:</span>
-                      <span className="mono tabular-nums font-bold">{currentDroppedPps.toLocaleString()} pkts/s</span>
+                    <div className="flex items-center gap-2 rounded-lg bg-red-50 px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-red-800 border border-red-200">
+                      <span className="size-2.5 rounded-full bg-red-600" />
+                      <span>Blocked Flood:</span>
+                      <span className="mono tabular-nums font-bold text-red-700">{currentDroppedPps.toLocaleString()} pkts/s</span>
                     </div>
 
-                    <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-1.5 text-xs sm:text-sm font-semibold text-emerald-800 border border-emerald-200">
+                    <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-emerald-800 border border-emerald-200">
                       <span className="size-2.5 rounded-full bg-emerald-600" />
-                      <span>Clean Passed:</span>
-                      <span className="mono tabular-nums font-bold">{currentForwardedPps.toLocaleString()} pkts/s</span>
+                      <span>Clean Delivered:</span>
+                      <span className="mono tabular-nums font-bold text-emerald-700">{currentForwardedPps.toLocaleString()} pkts/s</span>
                     </div>
 
                     <button
@@ -888,24 +931,24 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Sub-Legend Row */}
+                {/* Sub-Legend Row (Strict 3 Colors) */}
                 <div className="mt-4 flex flex-wrap items-center justify-between text-xs sm:text-sm text-slate-500">
-                  <div className="flex flex-wrap items-center gap-4">
-                    <span className="flex items-center gap-1.5">
-                      <span className="size-2.5 rounded-full bg-blue-600" /> Total Ingress (Blue)
+                  <div className="flex flex-wrap items-center gap-5">
+                    <span className="flex items-center gap-1.5 font-medium text-slate-700">
+                      <span className="size-2.5 rounded-full bg-slate-700" /> Total Network Volume (Slate)
                     </span>
-                    <span className="flex items-center gap-1.5">
-                      <span className="size-2.5 rounded-full bg-rose-600" /> Blocked Traffic (Red)
+                    <span className="flex items-center gap-1.5 font-medium text-red-700">
+                      <span className="size-2.5 rounded-full bg-red-600" /> Blocked Attack Flood (Red)
                     </span>
-                    <span className="flex items-center gap-1.5">
-                      <span className="size-2.5 rounded-full bg-emerald-500" /> Clean Throughput (Green)
+                    <span className="flex items-center gap-1.5 font-medium text-emerald-700">
+                      <span className="size-2.5 rounded-full bg-emerald-600" /> Clean User Traffic (Green)
                     </span>
-                    <span className="flex items-center gap-1.5">
-                      <span className="h-0.5 w-4 bg-orange-400" /> Anomaly Threshold ({Math.round(data.traffic.threshold * 1000).toLocaleString()} pkts/s)
+                    <span className="flex items-center gap-1.5 text-slate-500">
+                      <span className="h-0.5 w-4 bg-slate-400" /> Normal Traffic Baseline ({Math.round(data.traffic.threshold * 1000).toLocaleString()} pkts/s)
                     </span>
                   </div>
-                  <div className="mono tabular-nums font-medium text-slate-400">
-                    Peak: {peakPps.toLocaleString()} pkts/s
+                  <div className="mono tabular-nums font-medium text-slate-500">
+                    Recorded Peak: <strong className="text-slate-800">{peakPps.toLocaleString()}</strong> pkts/s
                   </div>
                 </div>
 
@@ -916,6 +959,103 @@ export default function App() {
                     Awaiting traffic packets from switch...
                   </div>
                 )}
+              </section>
+
+              {/* NETWORK TERMS DECODED (GLOSSARY) */}
+              <section id="glossary" className="mt-8 sm:mt-10 scroll-mt-24">
+                <div className="panel-card p-7 sm:p-8">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-5">
+                    <div>
+                      <h2 className="text-lg sm:text-xl font-bold text-slate-900 text-balance">
+                        Network Terms Decoded · Understand Every Concept
+                      </h2>
+                      <p className="mt-1 text-sm text-slate-500 text-pretty">
+                        Plain-English explanations of key network terminology, protocols, and autonomous defense principles
+                      </p>
+                    </div>
+                    <span className="self-start sm:self-auto rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 border border-slate-200 shrink-0">
+                      Educational Reference
+                    </span>
+                  </div>
+
+                  <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Concept 1: Packets & Rates */}
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-5 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between gap-2">
+                          <h3 className="font-bold text-slate-900 text-base">Packets &amp; Traffic Speed (pkts/s)</h3>
+                          <span className="rounded bg-slate-200 px-2 py-0.5 text-[11px] font-bold text-slate-700 uppercase">Speed</span>
+                        </div>
+                        <p className="mt-2 text-sm text-slate-600 leading-relaxed text-pretty">
+                          All Internet communication travels in small envelopes called <strong className="text-slate-900">packets</strong>. Traffic speed is measured in <strong className="text-slate-900">pkts/s</strong> (packets per second).
+                        </p>
+                        <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-600 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-emerald-700">Legitimate Users:</span>
+                            <span className="mono tabular-nums text-slate-700 font-medium">100 – 1,500 pkts/s</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-red-700">DDoS Attacks:</span>
+                            <span className="mono tabular-nums text-slate-700 font-medium">5,000 – 50,000+ pkts/s</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Concept 2: UDP vs TCP */}
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-5 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between gap-2">
+                          <h3 className="font-bold text-slate-900 text-base">UDP vs. TCP Streams</h3>
+                          <span className="rounded bg-slate-200 px-2 py-0.5 text-[11px] font-bold text-slate-700 uppercase">Protocols</span>
+                        </div>
+                        <p className="mt-2 text-sm text-slate-600 leading-relaxed text-pretty">
+                          <strong className="text-slate-900">TCP:</strong> Requires a two-way handshake before sending data (like a confirmed phone call). Used for websites and secure logins.<br />
+                          <strong className="text-slate-900">UDP:</strong> Shoots packets with no handshake or confirmation (like a live radio broadcast). Used for video streaming and DNS lookups.
+                        </p>
+                        <div className="mt-3 rounded-lg border border-red-100 bg-red-50/50 p-2.5 text-xs text-red-800 leading-relaxed">
+                          <strong>Why UDP is abused:</strong> Attackers can flood millions of fake UDP packets with zero handshake, quickly overwhelming target servers.
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Concept 3: Same-IP Mixed Traffic */}
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-5 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between gap-2">
+                          <h3 className="font-bold text-slate-900 text-base">Same-IP Mixed Traffic</h3>
+                          <span className="inline-flex items-center gap-1 rounded bg-slate-200 px-2 py-0.5 text-[11px] font-bold text-slate-700 uppercase">
+                            <span className="size-1.5 rounded-full bg-emerald-600" />
+                            <span className="size-1.5 rounded-full bg-red-600" />
+                            Dual-Stream
+                          </span>
+                        </div>
+                        <p className="mt-2 text-sm text-slate-600 leading-relaxed text-pretty">
+                          A single device (IP address) can simultaneously run a <strong className="text-emerald-700">safe application</strong> (e.g. video streaming on port 5001) while infected background malware launches a <strong className="text-red-700">malicious flood</strong> on port 80.
+                        </p>
+                        <div className="mt-3 rounded-lg border border-slate-200 bg-white p-2.5 text-xs text-slate-600 leading-relaxed">
+                          <strong>Selective Mitigation:</strong> Older firewalls block the entire IP, punishing innocent traffic. Our SDN controller inspects individual ports and protocols to drop only the attack while letting good traffic through.
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Concept 4: SDN Hardware Line-Rate Drop */}
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-5 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between gap-2">
+                          <h3 className="font-bold text-slate-900 text-base">Line-Rate Switch Drop Rules</h3>
+                          <span className="rounded bg-red-100 px-2 py-0.5 text-[11px] font-bold text-red-700 uppercase">Hardware</span>
+                        </div>
+                        <p className="mt-2 text-sm text-slate-600 leading-relaxed text-pretty">
+                          Traditional software firewalls inspect traffic on a CPU, which burns 100% compute and drops packets indiscriminately under a flood.
+                        </p>
+                        <div className="mt-3 rounded-lg border border-slate-200 bg-white p-2.5 text-xs text-slate-600 leading-relaxed">
+                          <strong>Microsecond Wire Speed:</strong> Our Ryu controller pushes an <strong className="text-slate-900">OpenFlow Priority 65535 DROP rule</strong> directly into Open vSwitch hardware. Hostile packets are discarded at the switch port before they ever reach the server.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </section>
 
               {/* HOW IT WORKS & WHY BLOCKED SECTION */}
@@ -941,7 +1081,7 @@ export default function App() {
                     <div className="flex items-start gap-4">
                       <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white mt-0.5">3</span>
                       <div className="text-pretty">
-                        <strong className="text-slate-900">Line-Rate Mitigation:</strong> The controller sends an OpenFlow `OFPFlowMod` message pushing a Priority 65535 DROP rule matching the attacker's source IP (`10.0.0.2`), dropping hostile traffic in hardware while legitimate traffic flows undisturbed.
+                        <strong className="text-slate-900">Line-Rate Mitigation:</strong> The controller sends an OpenFlow `OFPFlowMod` message pushing a Priority 65535 DROP rule matching the exact hostile flow tuple, dropping attack traffic at line rate in hardware while concurrent legitimate streams continue passing without packet loss.
                       </div>
                     </div>
                   </div>
@@ -961,12 +1101,12 @@ export default function App() {
                             <span className="mono tabular-nums">{reason.share}%</span>
                           </div>
                           <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-slate-100">
-                            <div className="h-full rounded-full bg-rose-600" style={{ width: `${reason.share}%` }} />
+                            <div className="h-full rounded-full bg-red-600" style={{ width: `${reason.share}%` }} />
                           </div>
                         </div>
                       ))}
                       <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs sm:text-sm text-slate-600 leading-relaxed text-pretty">
-                        <strong>Policy Action:</strong> Attacking source IP <code>10.0.0.2</code> is blocked from flooding server <code>10.0.0.3</code>. Normal forwarding rule for legitimate host <code>10.0.0.1</code> remains active with Priority 1.
+                        <strong>Policy Action:</strong> Attacking packet flows are isolated at the switch and dropped at hardware line-rate (Priority 65535). Safe forwarding rules (Priority 10) remain active, allowing clean user traffic and concurrent benign streams to pass undisturbed.
                       </div>
                     </div>
                   ) : (
@@ -1007,7 +1147,7 @@ export default function App() {
                         onClick={() => setTableFilter('blocked_mixed')}
                         className={`rounded-md px-3 py-1.5 transition-all enabled:active:scale-[0.97] motion-reduce:enabled:active:scale-100 tabular-nums ${
                           tableFilter === 'blocked_mixed'
-                            ? 'bg-white text-rose-700 shadow-sm font-bold'
+                            ? 'bg-white text-red-700 shadow-sm font-bold'
                             : 'text-slate-600 hover:text-slate-900'
                         }`}
                       >
@@ -1063,10 +1203,10 @@ export default function App() {
                   <table className="w-full text-left text-sm">
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-50 font-semibold text-slate-600 text-xs uppercase tracking-wider">
-                        <th className="py-4 px-6">Source IP &amp; Host Node</th>
-                        <th className="py-4 px-6">Traffic Vectors &amp; Protocols</th>
+                        <th className="py-4 px-6">Source IP &amp; Device Identity</th>
+                        <th className="py-4 px-6">Traffic Streams &amp; Application Vectors</th>
                         <th className="py-4 px-6 min-w-[240px]">Passed vs. Blocked Traffic</th>
-                        <th className="py-4 px-6 max-w-xs">Mitigation Reason / Behavioral Rule</th>
+                        <th className="py-4 px-6 max-w-xs">Autonomous Decision &amp; Behavior</th>
                         <th className="py-4 px-6">Rule Priority</th>
                         <th className="py-4 px-6 text-right">Defense Status</th>
                       </tr>
@@ -1080,37 +1220,41 @@ export default function App() {
 
                         return (
                           <tr key={row.ip} className="hover:bg-slate-50/70 transition-colors">
-                            {/* Source IP & Host */}
+                            {/* Source IP & Device Identity */}
                             <td className="py-4.5 px-6">
                               <div className="flex items-center gap-2">
                                 <span className="font-bold text-slate-900 mono tabular-nums text-base">{row.ip}</span>
                                 {isMixed && (
-                                  <span className="inline-flex items-center gap-1 rounded bg-purple-50 px-1.5 py-0.5 text-[10px] font-bold text-purple-700 border border-purple-200">
-                                    MIXED IP
+                                  <span className="inline-flex items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-800 border border-slate-300">
+                                    <span className="size-1.5 rounded-full bg-emerald-600" />
+                                    <span className="size-1.5 rounded-full bg-red-600" />
+                                    DUAL-STREAM
                                   </span>
                                 )}
                               </div>
-                              <div className="text-xs text-slate-500 mt-0.5 font-medium">{row.hostLabel}</div>
+                              <div className="text-xs text-slate-600 mt-0.5 font-semibold">{row.hostLabel}</div>
                               {row.mac && <div className="text-[11px] text-slate-400 mono tabular-nums">{row.mac}</div>}
                             </td>
 
-                            {/* Traffic Vectors & Protocols */}
+                            {/* Traffic Streams & Application Vectors */}
                             <td className="py-4.5 px-6">
                               <div className="flex flex-col gap-1.5">
                                 {row.allowedFlows.map((f, fi) => (
-                                  <span key={`af-${fi}`} className="inline-flex items-center gap-1.5 rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 border border-emerald-200 w-fit mono tabular-nums">
-                                    <span className="size-1.5 rounded-full bg-emerald-500" />
-                                    {f.protocol} :{f.dstPort} ({f.pps.toLocaleString()} pkts/s)
+                                  <span key={`af-${fi}`} className="inline-flex items-center gap-1.5 rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 border border-emerald-200 w-fit">
+                                    <span className="size-1.5 rounded-full bg-emerald-600 shrink-0" />
+                                    <span>{formatFlowVector(f.protocol, f.dstPort, false)}</span>
+                                    <span className="mono tabular-nums text-emerald-700 font-bold ml-0.5">({f.pps.toLocaleString()} pkts/s)</span>
                                   </span>
                                 ))}
                                 {row.blockedFlows.map((f, fi) => (
-                                  <span key={`bf-${fi}`} className="inline-flex items-center gap-1.5 rounded-md bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700 border border-rose-200 w-fit mono tabular-nums">
-                                    <span className="size-1.5 rounded-full bg-rose-500" />
-                                    {f.protocol} :{f.dstPort} [{f.attackType || 'Attack'}] ({f.pps.toLocaleString()} pkts/s)
+                                  <span key={`bf-${fi}`} className="inline-flex items-center gap-1.5 rounded-md bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-800 border border-red-200 w-fit">
+                                    <span className="size-1.5 rounded-full bg-red-600 shrink-0" />
+                                    <span>{formatFlowVector(f.protocol, f.dstPort, true, f.attackType)}</span>
+                                    <span className="mono tabular-nums text-red-700 font-bold ml-0.5">({f.pps.toLocaleString()} pkts/s)</span>
                                   </span>
                                 ))}
                                 {!row.allowedFlows.length && !row.blockedFlows.length && (
-                                  <span className="text-xs text-slate-400">Idle / No active flows</span>
+                                  <span className="text-xs text-slate-400">Idle / No active packets</span>
                                 )}
                               </div>
                             </td>
@@ -1119,41 +1263,41 @@ export default function App() {
                             <td className="py-4.5 px-6">
                               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
                                 <div>
-                                  <span className="text-slate-400">Passed: </span>
-                                  <span className="mono tabular-nums font-bold text-emerald-600">{row.forwardedPps.toLocaleString()}</span>
+                                  <span className="text-slate-500 font-medium">Passed: </span>
+                                  <span className="mono tabular-nums font-bold text-emerald-700">{row.forwardedPps.toLocaleString()}</span>
                                   <span className="text-[10px] text-slate-400"> pkts/s</span>
                                 </div>
                                 <div>
-                                  <span className="text-slate-400">Blocked: </span>
-                                  <span className="mono tabular-nums font-bold text-rose-600">{row.droppedPps.toLocaleString()}</span>
+                                  <span className="text-slate-500 font-medium">Blocked: </span>
+                                  <span className="mono tabular-nums font-bold text-red-700">{row.droppedPps.toLocaleString()}</span>
                                   <span className="text-[10px] text-slate-400"> pkts/s</span>
                                 </div>
                                 <div>
-                                  <span className="text-slate-400">Total: </span>
-                                  <span className="mono tabular-nums font-bold text-slate-800">{row.ingressPps.toLocaleString()}</span>
+                                  <span className="text-slate-500 font-medium">Total: </span>
+                                  <span className="mono tabular-nums font-bold text-slate-900">{row.ingressPps.toLocaleString()}</span>
                                   <span className="text-[10px] text-slate-400"> pkts/s</span>
                                 </div>
                               </div>
 
                               {/* Stacked Bar Graph */}
                               <div className="mt-2 flex items-center gap-2">
-                                <div className="h-2.5 overflow-hidden rounded-full bg-slate-100 flex" style={{ width: `${widthPercent}%`, minWidth: '40px' }}>
+                                <div className="h-2.5 overflow-hidden rounded-full bg-slate-100 flex border border-slate-200" style={{ width: `${widthPercent}%`, minWidth: '48px' }}>
                                   {passPercent > 0 && (
                                     <div
-                                      className="h-full bg-emerald-500 transition-all duration-300"
+                                      className="h-full bg-emerald-600 transition-all duration-300"
                                       style={{ width: `${passPercent}%` }}
                                       title={`Passed: ${row.forwardedPps.toLocaleString()} pkts/s (${passPercent.toFixed(1)}%)`}
                                     />
                                   )}
                                   {dropPercent > 0 && (
                                     <div
-                                      className="h-full bg-rose-500 transition-all duration-300"
+                                      className="h-full bg-red-600 transition-all duration-300"
                                       style={{ width: `${dropPercent}%` }}
                                       title={`Blocked: ${row.droppedPps.toLocaleString()} pkts/s (${dropPercent.toFixed(1)}%)`}
                                     />
                                   )}
                                 </div>
-                                <span className="mono tabular-nums text-[10px] text-slate-400 shrink-0 font-medium">
+                                <span className="mono tabular-nums text-[10px] text-slate-500 shrink-0 font-medium">
                                   {dropPercent > 0 && passPercent > 0
                                     ? `${dropPercent.toFixed(0)}% drop`
                                     : dropPercent > 0
@@ -1169,8 +1313,8 @@ export default function App() {
                                 {row.primaryReason || 'Clean Legitimate Traffic'}
                               </div>
                               {isMixed && (
-                                <div className="text-[11px] text-purple-700 font-medium mt-1 text-pretty">
-                                  Hostile flow isolated at switch; concurrent legitimate stream forwarded
+                                <div className="text-[11px] text-slate-600 font-medium mt-1 text-pretty">
+                                  Hostile stream blocked at switch hardware; genuine stream forwarded without interference.
                                 </div>
                               )}
                             </td>
@@ -1179,18 +1323,18 @@ export default function App() {
                             <td className="py-4.5 px-6">
                               {isMixed ? (
                                 <div>
-                                  <div className="mono tabular-nums font-bold text-slate-900 text-xs">P10 / P65535</div>
-                                  <div className="text-[10px] text-purple-600 font-semibold mt-0.5">Pass / Drop Tuple</div>
+                                  <div className="mono tabular-nums font-bold text-slate-900 text-xs">P10 (Pass) / P65535 (Drop)</div>
+                                  <div className="text-[10px] text-slate-500 font-semibold mt-0.5">Selective Flow Isolation</div>
                                 </div>
                               ) : row.droppedPps > 0 || row.status === 'ACTIVE DROP' || row.status === 'RULE RETAINED' ? (
                                 <div>
-                                  <div className="mono tabular-nums font-bold text-rose-600 text-sm">65535</div>
-                                  <div className="text-[10px] text-rose-500 font-medium">DROP Rule</div>
+                                  <div className="mono tabular-nums font-bold text-red-700 text-sm">Priority 65535</div>
+                                  <div className="text-[10px] text-red-600 font-medium">Hardware Drop Rule</div>
                                 </div>
                               ) : (
                                 <div>
-                                  <div className="mono tabular-nums font-semibold text-slate-600 text-sm">10</div>
-                                  <div className="text-[10px] text-emerald-600 font-medium">FORWARD Rule</div>
+                                  <div className="mono tabular-nums font-semibold text-emerald-700 text-sm">Priority 10</div>
+                                  <div className="text-[10px] text-emerald-600 font-medium">Safe Forward Rule</div>
                                 </div>
                               )}
                             </td>
@@ -1198,17 +1342,21 @@ export default function App() {
                             {/* Defense Status */}
                             <td className="py-4.5 px-6 text-right">
                               {row.status === 'MIXED' ? (
-                                <span className="inline-flex items-center gap-1.5 rounded-full bg-purple-100 px-3 py-1 text-xs font-bold text-purple-800 border border-purple-200">
-                                  <span className="size-1.5 rounded-full bg-purple-600 animate-pulse" />
-                                  MIXED · PARTIAL DROP
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-800 border border-slate-300">
+                                  <span className="flex items-center gap-1">
+                                    <span className="size-1.5 rounded-full bg-emerald-600" />
+                                    <span className="size-1.5 rounded-full bg-red-600" />
+                                  </span>
+                                  DUAL-STREAM · PARTIAL DROP
                                 </span>
                               ) : row.status === 'ACTIVE DROP' ? (
-                                <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-100 px-3 py-1 text-xs font-bold text-rose-700 border border-rose-200">
-                                  <span className="size-1.5 rounded-full bg-rose-600 animate-ping" />
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-800 border border-red-200">
+                                  <span className="size-1.5 rounded-full bg-red-600 animate-ping" />
                                   ACTIVE DROP
                                 </span>
                               ) : row.status === 'RULE RETAINED' ? (
-                                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800 border border-amber-200">
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700 border border-slate-300">
+                                  <span className="size-1.5 rounded-full bg-slate-500" />
                                   RULE RETAINED
                                 </span>
                               ) : (
@@ -1235,17 +1383,17 @@ export default function App() {
                         <td className="py-4 px-6" colSpan={2}>
                           <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                             <div>
-                              <span className="text-slate-400 text-xs">Passed: </span>
-                              <span className="mono tabular-nums font-bold text-emerald-600">{totalVisiblePassed.toLocaleString()}</span>
+                              <span className="text-slate-500 text-xs font-medium">Passed: </span>
+                              <span className="mono tabular-nums font-bold text-emerald-700">{totalVisiblePassed.toLocaleString()}</span>
                               <span className="text-[11px] text-slate-400"> pkts/s</span>
                             </div>
                             <div>
-                              <span className="text-slate-400 text-xs">Blocked: </span>
-                              <span className="mono tabular-nums font-bold text-rose-600">{totalVisibleBlocked.toLocaleString()}</span>
+                              <span className="text-slate-500 text-xs font-medium">Blocked: </span>
+                              <span className="mono tabular-nums font-bold text-red-700">{totalVisibleBlocked.toLocaleString()}</span>
                               <span className="text-[11px] text-slate-400"> pkts/s</span>
                             </div>
                             <div>
-                              <span className="text-slate-400 text-xs">Total Ingress: </span>
+                              <span className="text-slate-500 text-xs font-medium">Total Ingress: </span>
                               <span className="mono tabular-nums font-bold text-slate-900">{totalVisibleIngress.toLocaleString()}</span>
                               <span className="text-[11px] text-slate-400"> pkts/s</span>
                             </div>

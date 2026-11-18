@@ -107,7 +107,7 @@ export function demoSnapshot(
   const ipTraffic: IpTrafficEntry[] = hasBlockedThreat ? [
     {
       ip: '10.0.0.1',
-      hostLabel: 'h1 (Legitimate Streamer)',
+      hostLabel: 'Workstation h1 (Video Streaming)',
       mac: '00:00:00:00:00:01',
       forwardedPps: 820,
       droppedPps: 0,
@@ -120,7 +120,7 @@ export function demoSnapshot(
     },
     {
       ip: '10.0.0.2',
-      hostLabel: 'h2 (Mixed / Volumetric Node)',
+      hostLabel: 'Smart Device h2 (Mixed: Video + UDP Flood)',
       mac: '00:00:00:00:00:02',
       forwardedPps: 440,
       droppedPps: isAttackActive ? 9500 : 0,
@@ -128,7 +128,7 @@ export function demoSnapshot(
       allowedFlows: [{ protocol: 'UDP', dstPort: 5001, dstIp: '10.0.0.3', pps: 440, packets: 14200 }],
       blockedFlows: isAttackActive ? [{
         protocol: 'UDP', dstPort: 80, dstIp: '10.0.0.3', pps: 9500, packets: 95000,
-        attackType: 'Volumetric UDP Flood', reason: 'High-rate volumetric flood (9,500 pkts/s) on port 80 detected by CIC-DDoS2019 Decision Tree',
+        attackType: 'Volumetric UDP Flood', reason: 'High-rate fake UDP flood (9,500 pkts/s) on port 80 detected by ML engine',
         priority: 65535
       }] : [{
         protocol: 'UDP', dstPort: 80, dstIp: '10.0.0.3', pps: 0, packets: 95000,
@@ -141,7 +141,7 @@ export function demoSnapshot(
     },
     {
       ip: '10.0.0.4',
-      hostLabel: 'h4 (Mixed / TCP SYN Node)',
+      hostLabel: 'Office PC h4 (Mixed: DNS + Connection Flood)',
       mac: '00:00:00:00:00:04',
       forwardedPps: 230,
       droppedPps: isAttackActive ? 6800 : 0,
@@ -149,7 +149,7 @@ export function demoSnapshot(
       allowedFlows: [{ protocol: 'UDP', dstPort: 53, dstIp: '10.0.0.3', pps: 230, packets: 7800 }],
       blockedFlows: isAttackActive ? [{
         protocol: 'TCP', dstPort: 80, dstIp: '10.0.0.3', pps: 6800, packets: 68000,
-        attackType: 'TCP SYN Flood', reason: 'TCP SYN handshake flood (6,800 pkts/s) on port 80 detected by CIC-DDoS2019 Decision Tree',
+        attackType: 'TCP SYN Flood', reason: 'TCP SYN connection overload flood (6,800 pkts/s) on port 80 detected by ML engine',
         priority: 65535
       }] : [{
         protocol: 'TCP', dstPort: 80, dstIp: '10.0.0.3', pps: 0, packets: 68000,
@@ -162,7 +162,7 @@ export function demoSnapshot(
     },
     {
       ip: '10.0.0.5',
-      hostLabel: 'h5 (Slowloris Node)',
+      hostLabel: 'Botnet Node h5 (Slow HTTP Starvation)',
       mac: '00:00:00:00:00:05',
       forwardedPps: 0,
       droppedPps: isAttackActive ? 48 : 0,
@@ -170,7 +170,7 @@ export function demoSnapshot(
       allowedFlows: [],
       blockedFlows: [{
         protocol: 'TCP', dstPort: 80, dstIp: '10.0.0.3', pps: isAttackActive ? 48 : 0, packets: 1440,
-        attackType: 'Slowloris Starvation', reason: 'Slowloris connection starvation on port 80 detected by CIC-DDoS2019 Decision Tree',
+        attackType: 'Slowloris Starvation', reason: 'Slowloris low-and-slow socket starvation on port 80 detected by ML engine',
         priority: 65535
       }],
       status: isAttackActive ? 'ACTIVE DROP' : 'RULE RETAINED',
@@ -179,7 +179,7 @@ export function demoSnapshot(
     },
     {
       ip: '10.0.0.6',
-      hostLabel: 'h6 (ICMP Flood Node)',
+      hostLabel: 'Botnet Node h6 (Ping Overload Flood)',
       mac: '00:00:00:00:00:06',
       forwardedPps: 0,
       droppedPps: isAttackActive ? 5200 : 0,
@@ -187,7 +187,7 @@ export function demoSnapshot(
       allowedFlows: [],
       blockedFlows: [{
         protocol: 'ICMP', dstPort: 0, dstIp: '10.0.0.3', pps: isAttackActive ? 5200 : 0, packets: 52000,
-        attackType: 'ICMP Echo Flood', reason: 'High-rate ICMP echo flood (5,200 pkts/s) detected by CIC-DDoS2019 Decision Tree',
+        attackType: 'ICMP Echo Flood', reason: 'High-rate ping overload flood (5,200 pkts/s) detected by ML engine',
         priority: 65535
       }],
       status: isAttackActive ? 'ACTIVE DROP' : 'RULE RETAINED',
@@ -196,7 +196,7 @@ export function demoSnapshot(
     },
     {
       ip: '10.0.0.7',
-      hostLabel: 'h7 (High-Port UDP Node)',
+      hostLabel: 'Botnet Node h7 (Amplified Port Saturation)',
       mac: '00:00:00:00:00:07',
       forwardedPps: 0,
       droppedPps: isAttackActive ? 11400 : 0,
@@ -204,7 +204,7 @@ export function demoSnapshot(
       allowedFlows: [],
       blockedFlows: [{
         protocol: 'UDP', dstPort: 8080, dstIp: '10.0.0.3', pps: isAttackActive ? 11400 : 0, packets: 114000,
-        attackType: 'High-Port UDP Flood', reason: 'High-port volumetric UDP flood (11,400 pkts/s) on port 8080 detected by CIC-DDoS2019 Decision Tree',
+        attackType: 'High-Port UDP Flood', reason: 'High-port volumetric UDP blast (11,400 pkts/s) on port 8080 detected by ML engine',
         priority: 65535
       }],
       status: isAttackActive ? 'ACTIVE DROP' : 'RULE RETAINED',
@@ -213,7 +213,7 @@ export function demoSnapshot(
     },
     {
       ip: '10.0.0.8',
-      hostLabel: 'h8 (Pulsing Wave Node)',
+      hostLabel: 'Botnet Node h8 (Pulsing Wave Bursts)',
       mac: '00:00:00:00:00:08',
       forwardedPps: 0,
       droppedPps: isAttackActive ? 7600 : 0,
@@ -221,7 +221,7 @@ export function demoSnapshot(
       allowedFlows: [],
       blockedFlows: [{
         protocol: 'UDP', dstPort: 53, dstIp: '10.0.0.3', pps: isAttackActive ? 7600 : 0, packets: 76000,
-        attackType: 'Pulsing Wave DDoS', reason: 'Periodic pulsing wave burst attack (10s ON / 5s OFF on :53) detected by CIC-DDoS2019 Decision Tree',
+        attackType: 'Pulsing Wave DDoS', reason: 'Periodic pulsing wave burst attack (10s ON / 5s OFF on :53) detected by ML engine',
         priority: 65535
       }],
       status: isAttackActive ? 'ACTIVE DROP' : 'RULE RETAINED',
@@ -230,7 +230,7 @@ export function demoSnapshot(
     },
     {
       ip: '10.0.0.11',
-      hostLabel: 'h11 (Legitimate Web Client)',
+      hostLabel: 'Laptop h11 (Standard Web Client)',
       mac: '00:00:00:00:00:11',
       forwardedPps: 310,
       droppedPps: 0,
@@ -243,7 +243,7 @@ export function demoSnapshot(
     },
     {
       ip: '10.0.0.12',
-      hostLabel: 'h12 (Legitimate DNS Client)',
+      hostLabel: 'Gateway h12 (Internal DNS Queries)',
       mac: '00:00:00:00:00:12',
       forwardedPps: 185,
       droppedPps: 0,
@@ -257,7 +257,7 @@ export function demoSnapshot(
   ] : [
     {
       ip: '10.0.0.1',
-      hostLabel: 'h1 (Legitimate Streamer)',
+      hostLabel: 'Workstation h1 (Video Streaming)',
       mac: '00:00:00:00:00:01',
       forwardedPps: 820,
       droppedPps: 0,
@@ -270,7 +270,7 @@ export function demoSnapshot(
     },
     {
       ip: '10.0.0.11',
-      hostLabel: 'h11 (Legitimate Web Client)',
+      hostLabel: 'Laptop h11 (Standard Web Client)',
       mac: '00:00:00:00:00:11',
       forwardedPps: 310,
       droppedPps: 0,
@@ -283,7 +283,7 @@ export function demoSnapshot(
     },
     {
       ip: '10.0.0.12',
-      hostLabel: 'h12 (Legitimate DNS Client)',
+      hostLabel: 'Gateway h12 (Internal DNS Queries)',
       mac: '00:00:00:00:00:12',
       forwardedPps: 185,
       droppedPps: 0,

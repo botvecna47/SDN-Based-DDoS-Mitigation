@@ -419,15 +419,15 @@ class SimpleMonitor13(app_manager.RyuApp):
             # PASS 4: Granular Per-IP Aggregation (src_ip != '10.0.0.3')
             # -------------------------------------------------------------
             HOST_LABELS = {
-                '10.0.0.1': 'h1 (Legitimate Streamer)',
-                '10.0.0.2': 'h2 (Mixed / Volumetric Node)',
-                '10.0.0.4': 'h4 (Mixed / TCP SYN Node)',
-                '10.0.0.5': 'h5 (Slowloris Node)',
-                '10.0.0.6': 'h6 (ICMP Flood Node)',
-                '10.0.0.7': 'h7 (High-Port UDP Node)',
-                '10.0.0.8': 'h8 (Pulsing Wave Node)',
-                '10.0.0.11': 'h11 (Legitimate Web Client)',
-                '10.0.0.12': 'h12 (Legitimate DNS Client)',
+                '10.0.0.1': 'Workstation h1 (Video Streaming)',
+                '10.0.0.2': 'Smart Device h2 (Mixed: Video + UDP Flood)',
+                '10.0.0.4': 'Office PC h4 (Mixed: DNS + Connection Flood)',
+                '10.0.0.5': 'Botnet Node h5 (Slow HTTP Starvation)',
+                '10.0.0.6': 'Botnet Node h6 (Ping Overload Flood)',
+                '10.0.0.7': 'Botnet Node h7 (Amplified Port Saturation)',
+                '10.0.0.8': 'Botnet Node h8 (Pulsing Wave Bursts)',
+                '10.0.0.11': 'Laptop h11 (Standard Web Client)',
+                '10.0.0.12': 'Gateway h12 (Internal DNS Queries)',
             }
             HOST_MACS = {
                 '10.0.0.1': '00:00:00:00:00:01',
