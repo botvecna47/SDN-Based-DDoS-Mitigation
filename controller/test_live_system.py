@@ -107,20 +107,35 @@ def run_live_test():
         }
     ]
 
+    normal_ip_traffic = [{
+        "ip": "10.0.0.1",
+        "hostLabel": "Workstation h1 (Video Streaming)",
+        "mac": "00:00:00:00:00:01",
+        "forwardedPps": 820,
+        "droppedPps": 0,
+        "ingressPps": 820,
+        "allowedFlows": [{"protocol": "UDP", "dstPort": 5001, "dstIp": "10.0.0.3", "pps": 820, "packets": 12000}],
+        "blockedFlows": [],
+        "status": "ALLOWED",
+        "primaryReason": "Clean Legitimate Traffic"
+    }]
+
     update_state(
         switch_connected=True,
         last_updated_at=time.time(),
         status="NORMAL",
         current_pps=820.0,
+        forwarded_pps=820.0,
         dropped_pps=0.0,
         active_flows=2,
         blocked_ips=[],
         detection_mode="machine_learning",
         controller_uptime_sec=45,
-        openflow_rules=normal_rules
+        openflow_rules=normal_rules,
+        ip_traffic=normal_ip_traffic
     )
 
-    time.sleep(1.2)  # Allow background history collector to tick
+    time.sleep(0.1)  # Brief yield
     status_code, stats = fetch_api("/api/network-stats")
     print(f"  • API Response Status : {GREEN}HTTP {status_code} OK{RESET}")
     print(f"  • System Health       : {GREEN}{stats['health'].upper()}{RESET} (Expected: OPERATIONAL)")
@@ -150,7 +165,7 @@ def run_live_test():
     # Install Drop Rule in OpenFlow switch rules
     attack_rules = list(normal_rules)
     attack_rules.insert(0, {
-        "match": {"eth_type": 2048, "ipv4_src": "10.0.0.2"},
+        "match": {"eth_type": 2048, "ipv4_src": "10.0.0.2", "ip_proto": 17, "udp_dst": 80},
         "action": "DROP",
         "priority": 65535,
         "status": "BLOCKED",
@@ -158,20 +173,49 @@ def run_live_test():
         "bytes": 144000000
     })
 
+    attack_ip_traffic = [
+        {
+            "ip": "10.0.0.1",
+            "hostLabel": "Workstation h1 (Video Streaming)",
+            "mac": "00:00:00:00:00:01",
+            "forwardedPps": 820,
+            "droppedPps": 0,
+            "ingressPps": 820,
+            "allowedFlows": [{"protocol": "UDP", "dstPort": 5001, "dstIp": "10.0.0.3", "pps": 820, "packets": 12000}],
+            "blockedFlows": [],
+            "status": "ALLOWED",
+            "primaryReason": "Clean Legitimate Traffic"
+        },
+        {
+            "ip": "10.0.0.2",
+            "hostLabel": "Node h2 (Attacker / Mixed)",
+            "mac": "00:00:00:00:00:02",
+            "forwardedPps": 0,
+            "droppedPps": 24000,
+            "ingressPps": 24000,
+            "allowedFlows": [],
+            "blockedFlows": [{"protocol": "UDP", "dstPort": 80, "dstIp": "10.0.0.3", "pps": 24000, "packets": 240000, "attackType": "Volumetric Flood", "reason": "Volumetric Flood (>10,000 PPS)"}],
+            "status": "BLOCKED",
+            "primaryReason": "Volumetric Flood (>10,000 PPS)"
+        }
+    ]
+
     update_state(
         switch_connected=True,
         last_updated_at=time.time(),
         status="UNDER_ATTACK",
         current_pps=24820.0,
+        forwarded_pps=820.0,
         dropped_pps=24000.0,
         active_flows=3,
         blocked_ips=["10.0.0.2"],
         inference_latency_ms=inf_latency,
         detection_mode="machine_learning",
-        openflow_rules=attack_rules
+        openflow_rules=attack_rules,
+        ip_traffic=attack_ip_traffic
     )
 
-    time.sleep(1.2)
+    time.sleep(0.1)
     status_code, attack_stats = fetch_api("/api/network-stats")
     status_code_f, flow_table = fetch_api("/api/flow-table")
 
@@ -208,12 +252,14 @@ def run_live_test():
         last_updated_at=time.time(),
         status="NORMAL",
         current_pps=800.0,
+        forwarded_pps=800.0,
         dropped_pps=0.0,
         active_flows=2,
         blocked_ips=[],
-        openflow_rules=normal_rules
+        openflow_rules=normal_rules,
+        ip_traffic=normal_ip_traffic
     )
-    time.sleep(1.0)
+    time.sleep(0.1)
     _, recovered_stats = fetch_api("/api/network-stats")
     print(f"  • Post-Attack Health  : {GREEN}{recovered_stats['health'].upper()}{RESET} (Recovered to OPERATIONAL)")
     assert recovered_stats["health"] == "operational"
