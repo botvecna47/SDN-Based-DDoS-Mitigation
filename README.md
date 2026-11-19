@@ -1,4 +1,14 @@
-# SDN DDoS Mitigation Project
+# Project-Phase-I-2026-27: SDN-Based DDoS Mitigation
+
+> **Group ID**: 3  
+> **Academic Session**: 2026-27  
+> **Project Title**: Real-Time SDN-Based DDoS Detection & Mitigation System  
+> **Repository**: [botvecna47/Group-ID-3_SDN-Based-DDoS-Mitigation](https://github.com/botvecna47/Group-ID-3_SDN-Based-DDoS-Mitigation)  
+> **Deliverables Included**: Complete Source Code, ML Pipeline Models, Interactive UI Dashboard, Network Simulation Scripts, Documentation, and Root `requirements.txt`.
+
+---
+
+## SDN DDoS Mitigation Project
 
 A production-grade Software-Defined Networking (SDN) system that detects, classifies, and mitigates Distributed Denial of Service (DDoS) attacks in real-time. Designed for academic and enterprise research, this platform combines an OpenFlow 1.3 Ryu SDN controller, a **3-Tier Cascading Machine Learning Engine** (trained on the benchmark CIC-DDoS2019 dataset), immediate OpenFlow drop-rule enforcement on Open vSwitch (OVS), and an interactive React defense dashboard.
 
