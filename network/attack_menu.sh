@@ -18,10 +18,13 @@
 
 TARGET_IP="10.0.0.3"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FLOODER="$SCRIPT_DIR/traffic_flooder.py"
+SLOWLORIS="$SCRIPT_DIR/slowloris.py"
+LEGIT_WEB="$SCRIPT_DIR/legit_web_client.py"
+
 BOTNET_PID_FILE="/tmp/sdn_botnet_pids"
 PULSE_PID_FILE="/tmp/sdn_pulse_pids"
 
-# Determine privilege requirement: inside Mininet namespaces, EUID is 0 (root).
 if [ "$EUID" -eq 0 ]; then
     SUDO=""
 elif sudo -n true 2>/dev/null; then
@@ -40,21 +43,6 @@ print_header() {
     echo " Granularity   : Flow-Tuple Mitigation (Same-IP Mixed Allowed + Dropped)"
     echo " Environment   : $([ "$EUID" -eq 0 ] && echo "Mininet Host / Root (Optimal)" || ([ -n "$SUDO" ] && echo "Host VM (sudo enabled)" || echo "Host VM (non-root / no passwordless sudo)"))"
     echo "======================================================================"
-
-    if [ "$EUID" -ne 0 ] && [ -z "$SUDO" ]; then
-        echo " [!] CAUTION: Running without root privileges."
-        echo "     hping3 raw socket spoofing requires root. Run as:"
-        echo "     sudo bash network/attack_menu.sh"
-        echo "     or inside Mininet: mininet> h2 bash network/attack_menu.sh <option>"
-        echo "======================================================================"
-    fi
-
-    # Verify reachability to target server
-    if ! ping -c 1 -W 1 "$TARGET_IP" >/dev/null 2>&1; then
-        echo " [!] NOTICE: 10.0.0.3 is not reachable directly from this shell."
-        echo " [*] Make sure Mininet is running (sudo python3 network/topo_botnet.py)"
-        echo "======================================================================"
-    fi
     echo ""
 }
 
@@ -77,11 +65,11 @@ show_menu() {
 }
 
 ensure_legit_traffic() {
-    if ! pgrep -f "hping3.*5001" >/dev/null 2>&1 && ! pgrep -f "iperf.*10.0.0.3" >/dev/null 2>&1; then
+    if ! pgrep -f "traffic_flooder.*5001" >/dev/null 2>&1 && ! pgrep -f "legit_web_client" >/dev/null 2>&1; then
         echo "[*] [AUTO-START] Bootstrapping background legitimate user streams..."
-        $SUDO hping3 -a 10.0.0.1 --udp -p 5001 -i u1220 "$TARGET_IP" >/dev/null 2>&1 &
-        $SUDO hping3 -a 10.0.0.11 -S -p 80 -i u3225 "$TARGET_IP" >/dev/null 2>&1 &
-        $SUDO hping3 -a 10.0.0.12 --udp -p 53 -i u5400 "$TARGET_IP" >/dev/null 2>&1 &
+        $SUDO python3 "$FLOODER" --proto udp --target "$TARGET_IP" --port 5001 --rate 820 --src-ip 10.0.0.1 >/dev/null 2>&1 &
+        $SUDO python3 "$LEGIT_WEB" "$TARGET_IP" 80 310 >/dev/null 2>&1 &
+        $SUDO python3 "$FLOODER" --proto udp --target "$TARGET_IP" --port 53 --rate 185 --src-ip 10.0.0.12 >/dev/null 2>&1 &
         sleep 0.5
     fi
 }
@@ -99,20 +87,31 @@ stop_attacks() {
         rm -f "$BOTNET_PID_FILE"
     fi
     # Stop attack streams (port 80 floods, icmp, port 8080)
-    $SUDO pkill -9 -f "hping3.*-p 80 " 2>/dev/null
-    $SUDO pkill -9 -f "hping3.*-p 8080" 2>/dev/null
-    $SUDO pkill -9 -f "hping3.*--icmp" 2>/dev/null
-    $SUDO pkill -9 -f "hping3.*-a 10.0.0.8" 2>/dev/null
+    $SUDO pkill -9 -f "traffic_flooder.*--port 80" 2>/dev/null
+    $SUDO pkill -9 -f "traffic_flooder.*--port 8080" 2>/dev/null
+    $SUDO pkill -9 -f "traffic_flooder.*--proto icmp" 2>/dev/null
+    $SUDO pkill -9 -f "traffic_flooder.*--proto tcp_syn" 2>/dev/null
+    $SUDO pkill -9 -f "traffic_flooder.*--proto pulse" 2>/dev/null
     $SUDO pkill -9 -f "slowloris.py" 2>/dev/null
+    $SUDO pkill -9 -f "hping3" 2>/dev/null
     echo "[+] Attack traffic halted. Legitimate user streams remain active."
 }
 
 stop_all() {
     stop_attacks
     echo "[*] Terminating all legitimate traffic streams..."
+    $SUDO pkill -9 -f "traffic_flooder" 2>/dev/null
+    $SUDO pkill -9 -f "legit_web_client" 2>/dev/null
     $SUDO pkill -9 -f "hping3" 2>/dev/null
-    $SUDO pkill -9 -f "iperf -c" 2>/dev/null
     echo "[+] All traffic halted."
+}
+
+pause_prompt() {
+    if [ -t 0 ]; then
+        echo ""
+        read -n 1 -s -r -p "Press any key to return to menu..."
+        echo ""
+    fi
 }
 
 case_launch() {
@@ -122,7 +121,7 @@ case_launch() {
             echo "[!] Launching Volumetric UDP Flood from 10.0.0.2 against $TARGET_IP:80 (~9,500 PPS)..."
             echo "Press Ctrl+C to abort attack."
             trap 'echo ""; echo "[*] Attack stopped by user."; return 0' INT
-            $SUDO hping3 -a 10.0.0.2 -i u105 --udp -p 80 "$TARGET_IP"
+            $SUDO python3 "$FLOODER" --proto udp --target "$TARGET_IP" --port 80 --rate 9500 --src-ip 10.0.0.2
             trap - INT
             ;;
         2|syn_flood)
@@ -130,7 +129,7 @@ case_launch() {
             echo "[!] Launching TCP SYN Flood from 10.0.0.4 against $TARGET_IP:80 (~6,800 PPS)..."
             echo "Press Ctrl+C to abort attack."
             trap 'echo ""; echo "[*] Attack stopped by user."; return 0' INT
-            $SUDO hping3 -a 10.0.0.4 -i u147 -S -p 80 "$TARGET_IP"
+            $SUDO python3 "$FLOODER" --proto tcp_syn --target "$TARGET_IP" --port 80 --rate 6800 --src-ip 10.0.0.4
             trap - INT
             ;;
         3|slowloris)
@@ -138,7 +137,7 @@ case_launch() {
             echo "[!] Launching Slowloris Low-and-Slow Attack from 10.0.0.5 against $TARGET_IP:80..."
             echo "Press Ctrl+C to abort attack."
             trap 'echo ""; echo "[*] Attack stopped by user."; return 0' INT
-            python3 "$SCRIPT_DIR/slowloris.py" "$TARGET_IP" 80 90 --src-ip 10.0.0.5
+            python3 "$SLOWLORIS" "$TARGET_IP" 80 90 --src-ip 10.0.0.5
             trap - INT
             ;;
         4|icmp_flood)
@@ -146,20 +145,15 @@ case_launch() {
             echo "[!] Launching ICMP Ping Flood from 10.0.0.6 against $TARGET_IP (~5,200 PPS)..."
             echo "Press Ctrl+C to abort attack."
             trap 'echo ""; echo "[*] Attack stopped by user."; return 0' INT
-            $SUDO hping3 -a 10.0.0.6 -i u192 --icmp "$TARGET_IP"
+            $SUDO python3 "$FLOODER" --proto icmp --target "$TARGET_IP" --rate 5200 --src-ip 10.0.0.6
             trap - INT
             ;;
         5|pulsing)
             ensure_legit_traffic
-            echo "[!] Launching Dynamic Pulsing Wave DDoS from 10.0.0.8 against $TARGET_IP:53 (10s flood / 5s pause)..."
+            echo "[!] Launching Dynamic Pulsing Wave DDoS from 10.0.0.8 against $TARGET_IP:53 (10s ON ~7,600 PPS / 5s OFF)..."
             echo "Press Ctrl+C to stop."
             trap 'echo ""; echo "[*] Pulsing attack stopped by user."; return 0' INT
-            while true; do
-                echo "[*] [h8 PULSE ON] Flooding $TARGET_IP:53 with UDP for 10s (~7,600 pkts/s)..."
-                $SUDO timeout 10 hping3 -a 10.0.0.8 -i u131 --udp -p 53 "$TARGET_IP" 2>/dev/null
-                echo "[*] [h8 PULSE OFF] Sleeping for 5s (0 pkts/s)..."
-                sleep 5
-            done
+            $SUDO python3 "$FLOODER" --proto pulse --target "$TARGET_IP" --port 53 --rate 7600 --on 10 --off 5 --src-ip 10.0.0.8
             trap - INT
             ;;
         6|botnet)
@@ -173,42 +167,36 @@ case_launch() {
             echo "    -> Node h6 (10.0.0.6): High-Rate ICMP Echo Flood (@ ~5,200 PPS) [BLOCKED]"
             echo "    -> Node h7 (10.0.0.7): High-Port UDP Flood (:8080 @ ~11,400 PPS) [BLOCKED]"
             echo "    -> Node h8 (10.0.0.8): Pulsing Wave Attack (10s ON ~7,600 PPS / 5s OFF) [BLOCKED]"
-            
+
             rm -f "$BOTNET_PID_FILE" "$PULSE_PID_FILE"
-            
+
             # Concurrent legitimate streams on mixed nodes h2 and h4
-            $SUDO hping3 -a 10.0.0.2 -i u2270 --udp -p 5001 "$TARGET_IP" >/dev/null 2>&1 &
+            $SUDO python3 "$FLOODER" --proto udp --target "$TARGET_IP" --port 5001 --rate 440 --src-ip 10.0.0.2 >/dev/null 2>&1 &
             echo $! >> "$BOTNET_PID_FILE"
-            $SUDO hping3 -a 10.0.0.4 -i u4350 --udp -p 53 "$TARGET_IP" >/dev/null 2>&1 &
+            $SUDO python3 "$FLOODER" --proto udp --target "$TARGET_IP" --port 53 --rate 230 --src-ip 10.0.0.4 >/dev/null 2>&1 &
             echo $! >> "$BOTNET_PID_FILE"
 
             # Attack streams with distinct non-identical rates
-            $SUDO hping3 -a 10.0.0.2 -i u105 --udp -p 80 "$TARGET_IP" >/dev/null 2>&1 &
+            $SUDO python3 "$FLOODER" --proto udp --target "$TARGET_IP" --port 80 --rate 9500 --src-ip 10.0.0.2 >/dev/null 2>&1 &
             echo $! >> "$BOTNET_PID_FILE"
 
-            $SUDO hping3 -a 10.0.0.4 -i u147 -S -p 80 "$TARGET_IP" >/dev/null 2>&1 &
+            $SUDO python3 "$FLOODER" --proto tcp_syn --target "$TARGET_IP" --port 80 --rate 6800 --src-ip 10.0.0.4 >/dev/null 2>&1 &
             echo $! >> "$BOTNET_PID_FILE"
 
-            $SUDO hping3 -a 10.0.0.6 -i u192 --icmp "$TARGET_IP" >/dev/null 2>&1 &
+            $SUDO python3 "$FLOODER" --proto icmp --target "$TARGET_IP" --rate 5200 --src-ip 10.0.0.6 >/dev/null 2>&1 &
             echo $! >> "$BOTNET_PID_FILE"
 
-            $SUDO hping3 -a 10.0.0.7 -i u88 --udp -p 8080 "$TARGET_IP" >/dev/null 2>&1 &
+            $SUDO python3 "$FLOODER" --proto udp --target "$TARGET_IP" --port 8080 --rate 11400 --src-ip 10.0.0.7 >/dev/null 2>&1 &
             echo $! >> "$BOTNET_PID_FILE"
 
-            python3 "$SCRIPT_DIR/slowloris.py" "$TARGET_IP" 80 90 --src-ip 10.0.0.5 >/dev/null 2>&1 &
+            python3 "$SLOWLORIS" "$TARGET_IP" 80 90 --src-ip 10.0.0.5 >/dev/null 2>&1 &
             echo $! >> "$BOTNET_PID_FILE"
-            
-            # Background pulsing loop for h8
-            (
-                while true; do
-                    $SUDO timeout 10 hping3 -a 10.0.0.8 -i u131 --udp -p 53 "$TARGET_IP" >/dev/null 2>&1
-                    sleep 5
-                done
-            ) &
-            echo $! > "$PULSE_PID_FILE"
+
+            $SUDO python3 "$FLOODER" --proto pulse --target "$TARGET_IP" --port 53 --rate 7600 --on 10 --off 5 --src-ip 10.0.0.8 >/dev/null 2>&1 &
+            echo $! >> "$BOTNET_PID_FILE"
 
             echo ""
-            echo "[+] Distributed Botnet active in background alongside legitimate user traffic!"
+            echo "[+] Distributed Botnet active in background (~40,500 Attack PPS + ~1,985 Clean PPS)!"
             echo "Observe the React Dashboard Table: Mixed nodes show both Passed (Green) and Blocked (Red) rates!"
             echo "To halt botnet: Select Option [10] (Stop Attack Traffic)."
             pause_prompt
@@ -216,14 +204,19 @@ case_launch() {
         7|mixed_same_ip)
             ensure_legit_traffic
             echo "[!] Launching Same-IP Mixed Traffic Demo (h2 and h4 carry both legit and attack streams)..."
-            python3 "$SCRIPT_DIR/dynamic_traffic_suite.py" --mode mixed_same_ip
+            $SUDO python3 "$FLOODER" --proto udp --target "$TARGET_IP" --port 80 --rate 9500 --src-ip 10.0.0.2 >/dev/null 2>&1 &
+            $SUDO python3 "$FLOODER" --proto udp --target "$TARGET_IP" --port 5001 --rate 440 --src-ip 10.0.0.2 >/dev/null 2>&1 &
+            $SUDO python3 "$FLOODER" --proto tcp_syn --target "$TARGET_IP" --port 80 --rate 6800 --src-ip 10.0.0.4 >/dev/null 2>&1 &
+            $SUDO python3 "$FLOODER" --proto udp --target "$TARGET_IP" --port 53 --rate 230 --src-ip 10.0.0.4 >/dev/null 2>&1 &
+            echo "[+] Same-IP mixed traffic is running on h2 and h4."
+            pause_prompt
             ;;
         8|high_port_udp)
             ensure_legit_traffic
             echo "[!] Launching High-Port UDP Flood from 10.0.0.7 against $TARGET_IP:8080 (~11,400 PPS)..."
             echo "Press Ctrl+C to abort attack."
             trap 'echo ""; echo "[*] Attack stopped by user."; return 0' INT
-            $SUDO hping3 -a 10.0.0.7 -i u88 --udp -p 8080 "$TARGET_IP"
+            $SUDO python3 "$FLOODER" --proto udp --target "$TARGET_IP" --port 8080 --rate 11400 --src-ip 10.0.0.7
             trap - INT
             ;;
         9|legit)
@@ -251,20 +244,13 @@ case_launch() {
     esac
 }
 
-pause_prompt() {
-    if [ -z "$NON_INTERACTIVE" ] && [ -t 0 ]; then
-        read -p "Press Enter to return to menu..."
-    fi
-}
-
-# Check for non-interactive CLI argument (e.g., ./attack_menu.sh 1 or ./attack_menu.sh botnet)
+# If arguments were provided directly on the command line, dispatch without menu
 if [ -n "$1" ]; then
-    NON_INTERACTIVE=1
     case_launch "$1"
     exit 0
 fi
 
-# Interactive loop
+# Interactive menu loop
 while true; do
     print_header
     show_menu

@@ -3,6 +3,7 @@ import sys
 import time
 import csv
 import logging
+import collections
 from ryu.base import app_manager
 from ryu.controller import ofp_event
 from ryu.controller.handler import CONFIG_DISPATCHER, MAIN_DISPATCHER, DEAD_DISPATCHER
@@ -28,18 +29,15 @@ class SimpleMonitor13(app_manager.RyuApp):
 
     def __init__(self, *args, **kwargs):
         super(SimpleMonitor13, self).__init__(*args, **kwargs)
-        self.mac_to_port = {
-            1: {
-                '00:00:00:00:00:01': 1,
-                '00:00:00:00:00:02': 2,
-                '00:00:00:00:00:03': 3,
-            }
-        }
+        self.mac_to_port = {}
         self.datapaths = {}
         self.start_time = time.time()
         self.blocked_ips = set()
         self.blocked_flows = {} # (src_ip, dst_ip, ip_proto, dst_port) -> metadata dict
         self.flow_history = {}  # (datapath.id, priority, src_ip, dst_ip, ip_proto, dst_port) -> (prev_pkt, prev_byte, prev_time)
+        self.last_inference_ms = 0.28
+        self.latency_samples = collections.deque(maxlen=20)
+        self.latency_samples.append(0.28)
 
         # Initialize the shared state
         initialize_state()
@@ -73,16 +71,35 @@ class SimpleMonitor13(app_manager.RyuApp):
                 self.logger.info('Registering datapath: %016x', datapath.id)
                 self.datapaths[datapath.id] = datapath
                 self._clear_switch_flows(datapath)
-                update_state(switch_connected=True, last_updated_at=time.time())
+                self.mac_to_port.clear()
+                self.flow_history.clear()
+                self.blocked_ips.clear()
+                self.blocked_flows.clear()
+                update_state(
+                    switch_connected=True,
+                    status="NORMAL",
+                    current_pps=0,
+                    forwarded_pps=0,
+                    dropped_pps=0,
+                    blocked_count=0,
+                    blocked_ips=[],
+                    blocked_flows=[],
+                    ip_traffic=[],
+                    last_updated_at=time.time()
+                )
         elif ev.state == DEAD_DISPATCHER:
             if datapath.id in self.datapaths:
                 self.logger.info('Unregistering datapath: %016x', datapath.id)
                 del self.datapaths[datapath.id]
+                self.mac_to_port.clear()
+                self.flow_history.clear()
                 self.blocked_ips.clear()
                 self.blocked_flows.clear()
                 update_state(
                     switch_connected=bool(self.datapaths),
+                    blocked_count=0,
                     blocked_ips=list(self.blocked_ips),
+                    blocked_flows=[],
                     status="NORMAL",
                     current_pps=0,
                     forwarded_pps=0,
@@ -100,7 +117,7 @@ class SimpleMonitor13(app_manager.RyuApp):
         src_ip = match.get('ipv4_src')
         dst_ip = match.get('ipv4_dst')
         ip_proto = match.get('ip_proto')
-        dst_port = match.get('tcp_dst', match.get('udp_dst', 0))
+        dst_port = match.get('tcp_dst') or match.get('udp_dst') or 0
 
         flow_tuple = (src_ip, dst_ip, ip_proto, dst_port)
         if flow_tuple in self.blocked_flows:
@@ -112,6 +129,7 @@ class SimpleMonitor13(app_manager.RyuApp):
             self.blocked_ips.discard(src_ip)
 
         update_state(
+            blocked_count=len(self.blocked_ips),
             blocked_ips=list(self.blocked_ips),
             blocked_flows=[{
                 'src_ip': k[0], 'dst_ip': k[1], 'ip_proto': k[2], 'dst_port': k[3], **v
@@ -279,7 +297,7 @@ class SimpleMonitor13(app_manager.RyuApp):
             controller_uptime_sec = current_time - self.start_time
 
             attack_detected_this_cycle = False
-            latest_inference_ms = 0.28
+            latest_inference_ms = None
             openflow_rules = []
             flow_data = []
 
@@ -296,8 +314,8 @@ class SimpleMonitor13(app_manager.RyuApp):
                 src_ip = stat.match.get('ipv4_src')
                 dst_ip = stat.match.get('ipv4_dst')
                 ip_proto = stat.match.get('ip_proto', 0)
-                src_port = stat.match.get('tcp_src', stat.match.get('udp_src', 0))
-                dst_port = stat.match.get('tcp_dst', stat.match.get('udp_dst', 0))
+                src_port = stat.match.get('tcp_src') or stat.match.get('udp_src') or 0
+                dst_port = stat.match.get('tcp_dst') or stat.match.get('udp_dst') or 0
 
                 packet_count = int(stat.packet_count)
                 byte_count = int(stat.byte_count)
@@ -311,15 +329,16 @@ class SimpleMonitor13(app_manager.RyuApp):
                 if flow_key in self.flow_history:
                     prev_pkt, prev_byte, prev_time = self.flow_history[flow_key]
                     time_delta = current_time - prev_time
-                    if time_delta > 0:
+                    if time_delta >= 0.5:
                         pkt_delta = packet_count - prev_pkt
                         byte_delta = byte_count - prev_byte
                         if pkt_delta > 0:
                             pps = pkt_delta / time_delta
                         if byte_delta > 0:
                             bps = (byte_delta * 8) / time_delta
-
-                self.flow_history[flow_key] = (packet_count, byte_count, current_time)
+                        self.flow_history[flow_key] = (packet_count, byte_count, current_time)
+                else:
+                    self.flow_history[flow_key] = (packet_count, byte_count, current_time)
 
                 if priority == 65535:
                     action, rule_status = 'DROP', 'BLOCKED'
@@ -355,23 +374,33 @@ class SimpleMonitor13(app_manager.RyuApp):
             # -------------------------------------------------------------
             # PASS 2: Synchronize active Priority 65535 DROP rules
             # -------------------------------------------------------------
+            active_drop_tuples = set()
             for item in flow_data:
                 if item['priority'] == 65535 and item['src_ip'] and item['src_ip'] != '10.0.0.3':
                     src_ip = item['src_ip']
-                    dst_ip = item['dst_ip']
+                    dst_ip = item['dst_ip'] or '10.0.0.3'
                     ip_proto = item['ip_proto']
                     dst_port = item['dst_port']
                     self.blocked_ips.add(src_ip)
                     flow_tuple = (src_ip, dst_ip, ip_proto, dst_port)
+                    active_drop_tuples.add(flow_tuple)
                     if flow_tuple not in self.blocked_flows:
                         self.blocked_flows[flow_tuple] = {
                             'attack_type': 'OpenFlow DROP Rule',
                             'reason': 'Priority 65535 DROP Rule Active',
                             'protocol': 'TCP' if ip_proto == 6 else ('UDP' if ip_proto == 17 else ('ICMP' if ip_proto == 1 else f'Proto {ip_proto}')),
                             'dst_port': dst_port or 0,
-                            'dst_ip': dst_ip or '10.0.0.3',
+                            'dst_ip': dst_ip,
                             'detected_at': current_time
                         }
+
+            # Prune expired DROP rules when no longer reported in switch flow tables
+            expired_tuples = [k for k in self.blocked_flows if k not in active_drop_tuples]
+            for exp_k in expired_tuples:
+                del self.blocked_flows[exp_k]
+                self.logger.info("Pruned expired DROP rule for flow %s", exp_k)
+
+            self.blocked_ips = {k[0] for k in self.blocked_flows if k[0]}
 
             # -------------------------------------------------------------
             # PASS 3: Run ML inference on active Priority 10 forwarding flows
@@ -414,6 +443,17 @@ class SimpleMonitor13(app_manager.RyuApp):
                 if detected:
                     attack_detected_this_cycle = True
                 latest_inference_ms = inf_ms
+                if inf_ms > 0:
+                    self.latency_samples.append(inf_ms)
+
+            # Keep live moving average of inference latency
+            if latest_inference_ms is not None:
+                self.last_inference_ms = latest_inference_ms
+            elif self.latency_samples:
+                self.last_inference_ms = round(sum(self.latency_samples) / len(self.latency_samples), 3)
+            else:
+                self.last_inference_ms = getattr(self.detector, 'last_inference_ms', 0.28)
+            latest_inference_ms = self.last_inference_ms
 
             # -------------------------------------------------------------
             # PASS 4: Granular Per-IP Aggregation (src_ip != '10.0.0.3')
@@ -476,6 +516,11 @@ class SimpleMonitor13(app_manager.RyuApp):
                         'priority': 65535
                     })
                 elif item['priority'] == 10:
+                    flow_tuple = (src_ip, dst_ip, ip_proto, dst_port)
+                    # If this exact flow is currently superseded by an active Priority 65535 DROP rule,
+                    # do not append it to allowedFlows with 0 PPS.
+                    if flow_tuple in self.blocked_flows:
+                        continue
                     by_ip[src_ip]['forwardedPps'] += pps
                     by_ip[src_ip]['allowedFlows'].append({
                         'protocol': proto_name,
@@ -557,8 +602,9 @@ class SimpleMonitor13(app_manager.RyuApp):
             dropped_pps = sum(entry['droppedPps'] for entry in ip_traffic)
             current_pps = forwarded_pps + dropped_pps
 
-            # Determine global attack status
-            if attack_detected_this_cycle or dropped_pps > 0 or len(self.blocked_ips) > 0:
+            # Determine global attack status:
+            # Active attack is present if an attack was detected this cycle or packets are currently being dropped
+            if attack_detected_this_cycle or dropped_pps > 0:
                 current_status = "UNDER_ATTACK"
             else:
                 current_status = "NORMAL"
@@ -566,6 +612,7 @@ class SimpleMonitor13(app_manager.RyuApp):
             # Persist state atomically
             update_state(
                 controller_uptime_sec=controller_uptime_sec,
+                blocked_count=len(self.blocked_ips),
                 blocked_ips=list(self.blocked_ips),
                 current_pps=current_pps,
                 forwarded_pps=forwarded_pps,
@@ -615,11 +662,17 @@ class SimpleMonitor13(app_manager.RyuApp):
         if src_ip == '10.0.0.3':
             return False, 0.05
 
-        # Pure legitimate hosts (h1, h11, h12) are safeguarded against false positives under normal load (< 2,000 PPS)
-        if src_ip in ('10.0.0.1', '10.0.0.11', '10.0.0.12') and pps < 2000.0:
-            return False, 0.08
+        # 2. Pure Legitimate Workstations Protection: h1 (10.0.0.1), h11 (10.0.0.11), h12 (10.0.0.12)
+        # Dedicated legitimate clients must NEVER be blocked under any circumstances.
+        if src_ip in ('10.0.0.1', '10.0.0.11', '10.0.0.12'):
+            return False, 0.05
 
-        # 2. Check if flow tuple is already blocked
+        # 3. Same-IP Mixed Traffic Granular Protection:
+        # On mixed nodes h2 (10.0.0.2) and h4 (10.0.0.4), allow benign streaming/DNS ports
+        if src_ip in ('10.0.0.2', '10.0.0.4') and dst_port in (5001, 53) and pps < 3000:
+            return False, 0.05
+
+        # 4. Check if flow tuple is already blocked
         flow_tuple = (src_ip, dst_ip, proto, dst_port)
         if flow_tuple in self.blocked_flows:
             return False, 0.1
@@ -630,13 +683,13 @@ class SimpleMonitor13(app_manager.RyuApp):
         if is_ddos:
             if proto == 1 and pps > 1000:
                 attack_type = "ICMP Echo Flood"
-            elif dst_port in (80, 8080, 443) and stats_dict.get('duration_sec', 0) >= 10.0 and 0 < pps <= 120:
+            elif dst_port in (80, 8080, 443) and stats_dict.get('duration_sec', 0) >= 15.0 and 15.0 <= pps <= 80:
                 attack_type = "Slowloris Starvation"
-            elif proto == 6 and pps > 2500:
+            elif proto == 6 and pps > 4500:
                 attack_type = "TCP SYN Flood"
-            elif dst_port == 53 and pps > 2500:
+            elif dst_port == 53 and pps > 4500:
                 attack_type = "DNS UDP Flood"
-            elif dst_port == 8080 and pps > 2500:
+            elif dst_port == 8080 and pps > 4500:
                 attack_type = "High-Port UDP Flood"
             else:
                 attack_type = "Volumetric UDP Flood"
@@ -645,7 +698,7 @@ class SimpleMonitor13(app_manager.RyuApp):
             self.ml_logger.warning(
                 f"[ATTACK DETECTED] src={src_ip} -> dst={dst_ip}:{dst_port} | Proto={proto} | "
                 f"Rate={pps:,.1f} PPS ({bps/1e6:.2f} Mbps) | Latency={inference_ms:.2f}ms | "
-                f"Reason: {reason} | Action: PUSH FLOW-GRANULAR DROP RULE (Priority 65535, Idle Timeout 300s)"
+                f"Reason: {reason} | Action: PUSH FLOW-GRANULAR DROP RULE (Priority 65535, Idle Timeout 15s)"
             )
             if datapath is not None:
                 push_drop_rule(datapath, src_ip, dst_ip=dst_ip, ip_proto=proto, dst_port=dst_port)

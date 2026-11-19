@@ -21,9 +21,14 @@ class RobustRequestHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
     def do_GET(self):
-        body = b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 28\r\nConnection: close\r\n\r\nOK from Protected Server h3\n"
+        content = b"OK from Protected Server h3\n"
         try:
-            self.wfile.write(body)
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain")
+            self.send_header("Content-Length", str(len(content)))
+            self.send_header("Connection", "keep-alive")
+            self.end_headers()
+            self.wfile.write(content)
         except Exception:
             pass
 

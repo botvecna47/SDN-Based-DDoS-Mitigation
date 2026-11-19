@@ -63,6 +63,8 @@ def safe_int(val, default=0):
     except (ValueError, TypeError, OverflowError):
         return default
 
+SWITCH_TIMEOUT_SEC = 12.0
+
 def history_collector():
     """
     Background daemon thread that records traffic rates every 1.0s.
@@ -73,7 +75,7 @@ def history_collector():
         try:
             state = read_state()
             last_updated_at = float(state.get("last_updated_at", 0) or 0)
-            switch_connected = bool(state.get("switch_connected", False)) and time.time() - last_updated_at <= 5
+            switch_connected = bool(state.get("switch_connected", False)) and time.time() - last_updated_at <= SWITCH_TIMEOUT_SEC
 
             if switch_connected:
                 raw_ip_traffic = state.get("ip_traffic", [])
@@ -109,7 +111,7 @@ def network_stats():
         status = state.get("status", "NORMAL")
         active_flows = max(0, int(state.get("active_flows", 0)))
         last_updated_at = float(state.get("last_updated_at", 0) or 0)
-        switch_connected = bool(state.get("switch_connected", False)) and time.time() - last_updated_at <= 5
+        switch_connected = bool(state.get("switch_connected", False)) and time.time() - last_updated_at <= SWITCH_TIMEOUT_SEC
 
         raw_ip_traffic = state.get("ip_traffic", []) if switch_connected else []
 
@@ -151,7 +153,7 @@ def network_stats():
         for entry in ip_traffic:
             if entry["droppedPps"] > 0 or entry["blockedFlows"]:
                 first_bf = entry["blockedFlows"][0] if entry["blockedFlows"] else {}
-                target_port = first_bf.get("dstPort", 80)
+                target_port = safe_int(first_bf.get("dstPort", 0), default=0)
                 target_ip = first_bf.get("dstIp", "10.0.0.3")
                 proto = first_bf.get("attackType", first_bf.get("protocol", "Attack Flow"))
                 reason = entry.get("primaryReason") or first_bf.get("reason", f"DDoS detected by {state.get('ml_model_name', 'CIC-DDoS2019 Decision Tree')}")
@@ -160,7 +162,7 @@ def network_stats():
                     "ip": entry["ip"],
                     "country": entry["hostLabel"],
                     "mac": entry.get("mac", ""),
-                    "port": target_port,
+                    "port": max(0, target_port),
                     "protocol": proto,
                     "target": f"{target_ip}:{target_port}",
                     "reason": reason,
@@ -174,20 +176,25 @@ def network_stats():
                 })
 
         drop_reasons = []
-        if threats:
+        if threats and mitigated_pps > 0:
             reason_counts = {}
             for t in threats:
-                r = t["protocol"]
-                reason_counts[r] = reason_counts.get(r, 0) + max(1, t["ratePps"])
-            total_drop_rate = sum(reason_counts.values()) or 1
-            for r, rate in reason_counts.items():
-                drop_reasons.append({
-                    "reason": r,
-                    "share": round((rate / total_drop_rate) * 100)
-                })
+                rate = t.get("ratePps", 0)
+                if rate > 0:
+                    r = t.get("protocol", "Attack Flow")
+                    reason_counts[r] = reason_counts.get(r, 0) + rate
+            total_drop_rate = sum(reason_counts.values())
+            if total_drop_rate > 0:
+                for r, rate in reason_counts.items():
+                    drop_reasons.append({
+                        "reason": r,
+                        "share": min(100, max(0, round((rate / total_drop_rate) * 100)))
+                    })
+
+        is_under_attack = (status == "UNDER_ATTACK" and (mitigated_pps > 0 or any(t.get("ratePps", 0) > 0 for t in threats)))
 
         snapshot = {
-            "health": "offline" if not switch_connected else ("degraded" if status == "UNDER_ATTACK" else "operational"),
+            "health": "offline" if not switch_connected else ("degraded" if is_under_attack else "operational"),
             "detectionMode": state.get("detection_mode", "threshold_fallback"),
             "mlModelName": state.get("ml_model_name", "CIC-DDoS2019 Decision Tree"),
             "endpointsOnline": 1 if switch_connected else 0,

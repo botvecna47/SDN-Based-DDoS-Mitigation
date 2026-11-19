@@ -379,8 +379,8 @@ export function parseSnapshot(value: unknown): Snapshot {
   if (!['operational', 'degraded', 'offline'].includes(String(value.health)) || !['machine_learning', 'threshold_fallback', 'simulation'].includes(String(value.detectionMode)) || !finite(value.endpointsOnline) || !finite(value.endpointsTotal) ||
     !finite(metrics.activeRules) || !finite(metrics.mlLatencyMs) ||
     !numberArray(traffic.ingress) || !numberArray(traffic.dropped) || traffic.ingress.length !== traffic.dropped.length || !finite(traffic.threshold) ||
-    !value.threats.every((item: unknown) => record(item) && typeof item.ip === 'string' && typeof item.country === 'string' && finite(item.port) && typeof item.protocol === 'string' && typeof item.reason === 'string') ||
-    !value.dropReasons.every((item: unknown) => record(item) && typeof item.reason === 'string' && finite(item.share) && item.share <= 100)) {
+    !value.threats.every((item: unknown) => record(item) && typeof item.ip === 'string' && typeof item.country === 'string' && (item.port === undefined || item.port === null || finite(item.port)) && typeof item.protocol === 'string' && typeof item.reason === 'string') ||
+    !value.dropReasons.every((item: unknown) => record(item) && typeof item.reason === 'string' && typeof item.share === 'number' && Number.isFinite(item.share) && item.share >= 0 && item.share <= 100)) {
     throw new Error('Invalid telemetry values. Check the dashboard API contract.')
   }
   return value as Snapshot

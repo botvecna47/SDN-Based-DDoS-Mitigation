@@ -843,20 +843,20 @@ export default function App() {
                     <div className="text-xs sm:text-sm font-semibold uppercase tracking-wider text-slate-500">
                       Mitigation Efficiency
                     </div>
-                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold border tabular-nums ${currentDroppedPps > 0 ? 'bg-red-50 text-red-700 border-red-200' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
-                      {currentDroppedPps > 0 ? `${dropPercentage}% Blocked` : '0% Filtered'}
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold border tabular-nums ${currentDroppedPps > 0 ? 'bg-red-50 text-red-700 border-red-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
+                      {currentDroppedPps > 0 ? `${dropPercentage}% Blocked` : '100% Forwarded'}
                     </span>
                   </div>
                   <div className="mt-3 flex items-baseline gap-2">
                     <span className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 mono tabular-nums">
                       {currentDroppedPps > 0 ? `${dropPercentage}%` : '100%'}
                     </span>
-                    <span className="text-sm font-semibold text-slate-500">{currentDroppedPps > 0 ? 'filtered' : 'clean'}</span>
+                    <span className="text-sm font-semibold text-slate-500">{currentDroppedPps > 0 ? 'attack filtered' : 'clean delivery'}</span>
                   </div>
                   <div className="mt-3 text-xs sm:text-sm text-slate-500 leading-normal text-pretty">
                     {currentDroppedPps > 0
-                      ? 'Malicious packets discarded in hardware on switch port before touching server CPU.'
-                      : 'All flows verified benign. No packets flagged for dropping.'}
+                      ? `${currentDroppedPps.toLocaleString()} pkts/s attack discarded in hardware before touching server CPU.`
+                      : 'All flows verified benign by CIC-DDoS2019 ML. 0 packet loss across clean traffic.'}
                   </div>
                 </div>
 

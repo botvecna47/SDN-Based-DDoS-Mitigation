@@ -23,6 +23,9 @@ if CONTROLLER_DIR not in sys.path:
 if BACKEND_DIR not in sys.path:
     sys.path.insert(0, BACKEND_DIR)
 
+# Isolate state file so test execution never touches production shared_state.json
+os.environ["SDN_STATE_FILE"] = "/tmp/test_sdn_e2e_state.json"
+
 from state_manager import initialize_state, read_state, update_state
 from simple_monitor import SimpleMonitor13
 from app import app

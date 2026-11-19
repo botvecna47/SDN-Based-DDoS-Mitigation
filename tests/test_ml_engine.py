@@ -49,6 +49,9 @@ class TestMLEngine(unittest.TestCase):
         # Warm up NumPy/scikit-learn runtime caches
         cls.detector.predict(pps=100.0, bps=80000.0, duration_sec=1.0, packet_count=100)
 
+    def setUp(self):
+        warnings.filterwarnings("ignore")
+
     # -------------------------------------------------------------
     # 1. Model Initialization & Tier Checks
     # -------------------------------------------------------------

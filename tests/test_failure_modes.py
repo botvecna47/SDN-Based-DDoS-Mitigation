@@ -40,6 +40,9 @@ sys.path.insert(0, os.path.join(BASE_DIR, 'controller'))
 sys.path.insert(0, os.path.join(BASE_DIR, 'backend_api'))
 sys.path.insert(0, os.path.join(BASE_DIR, 'ml_pipeline'))
 
+# Isolate state file so test execution never touches production shared_state.json
+os.environ["SDN_STATE_FILE"] = "/tmp/test_sdn_failure_modes_state.json"
+
 from inference_loader import DDoSDetector
 import state_manager
 

@@ -40,7 +40,7 @@ def push_drop_rule(datapath, src_ip, dst_ip=None, ip_proto=None, dst_port=None):
         match=match,
         instructions=instructions,
         command=ofproto.OFPFC_ADD,
-        idle_timeout=300,  # Auto-expire after 5 minutes of inactivity
+        idle_timeout=15,   # Auto-expire after 15 seconds of inactivity when attack ceases
         hard_timeout=0,
         flags=ofproto.OFPFF_SEND_FLOW_REM
     )

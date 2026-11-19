@@ -12,8 +12,18 @@ FALLBACK_THRESHOLD_PPS = 10_000
 # We use a FileLock so they don't corrupt the file by reading/writing simultaneously.
 # ==============================================================================
 
-STATE_FILE = os.path.join(os.path.dirname(__file__), 'shared_state.json')
-LOCK_FILE = f"{STATE_FILE}.lock"
+def get_state_file():
+    return os.environ.get('SDN_STATE_FILE') or os.path.join(os.path.dirname(__file__), 'shared_state.json')
+
+def get_lock_file():
+    return f"{get_state_file()}.lock"
+
+def __getattr__(name):
+    if name == 'STATE_FILE':
+        return get_state_file()
+    if name == 'LOCK_FILE':
+        return get_lock_file()
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 
 def get_default_state():
@@ -43,10 +53,12 @@ def get_default_state():
 
 def initialize_state():
     """Run this once when the system starts to create the blank state."""
+    state_file = get_state_file()
+    lock_file = get_lock_file()
     default_state = get_default_state()
     try:
-        with FileLock(LOCK_FILE, timeout=2):
-            with open(STATE_FILE, 'w') as f:
+        with FileLock(lock_file, timeout=2):
+            with open(state_file, 'w') as f:
                 json.dump(default_state, f, indent=4)
     except Timeout:
         pass
@@ -54,18 +66,20 @@ def initialize_state():
 
 def update_state(**kwargs):
     """RYU CONTROLLER uses this to push new data. Auto-heals corrupted JSON."""
+    state_file = get_state_file()
+    lock_file = get_lock_file()
     try:
-        with FileLock(LOCK_FILE, timeout=2):
+        with FileLock(lock_file, timeout=2):
             try:
-                with open(STATE_FILE, 'r') as f:
+                with open(state_file, 'r') as f:
                     state = json.load(f)
                 state.update(kwargs)
-                with open(STATE_FILE, 'w') as f:
+                with open(state_file, 'w') as f:
                     json.dump(state, f, indent=4)
             except (FileNotFoundError, json.JSONDecodeError):
                 state = get_default_state()
                 state.update(kwargs)
-                with open(STATE_FILE, 'w') as f:
+                with open(state_file, 'w') as f:
                     json.dump(state, f, indent=4)
     except Timeout:
         pass
@@ -73,19 +87,21 @@ def update_state(**kwargs):
 
 def read_state():
     """FLASK API uses this to serve data to React. Auto-recovers stale lockfiles."""
+    state_file = get_state_file()
+    lock_file = get_lock_file()
     try:
-        with FileLock(LOCK_FILE, timeout=2):
+        with FileLock(lock_file, timeout=2):
             try:
-                with open(STATE_FILE, 'r') as f:
+                with open(state_file, 'r') as f:
                     return json.load(f)
             except (FileNotFoundError, json.JSONDecodeError):
                 return {"error": "State file unavailable"}
     except Timeout:
         try:
-            if os.path.exists(LOCK_FILE) and (time.time() - os.path.getmtime(LOCK_FILE) > 5.0):
-                os.remove(LOCK_FILE)
-                with FileLock(LOCK_FILE, timeout=1):
-                    with open(STATE_FILE, 'r') as f:
+            if os.path.exists(lock_file) and (time.time() - os.path.getmtime(lock_file) > 5.0):
+                os.remove(lock_file)
+                with FileLock(lock_file, timeout=1):
+                    with open(state_file, 'r') as f:
                         return json.load(f)
         except Exception:
             pass
